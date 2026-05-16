@@ -22,14 +22,16 @@ class AuthProvider extends ChangeNotifier {
     final storage = await StorageService.getInstance();
     final token = storage.getToken();
     final userData = storage.getUser();
-    if (token != null && userData != null) {
-      _user = userData;
+    if (token != null) {
+      if (userData != null) {
+        _user = userData;
+      }
       _isAuthenticated = true;
       notifyListeners();
       // Connect WebSocket
       WebSocketService.instance.connect();
-      // Refresh profile
-      refreshProfile();
+      // Refresh profile (also fixes missing user data)
+      await refreshProfile();
     }
   }
 

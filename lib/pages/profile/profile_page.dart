@@ -61,6 +61,7 @@ class ProfilePage extends StatelessWidget {
               value: theme.isDark,
               onChanged: (_) => theme.toggleTheme(),
               activeColor: AppColors.primary,
+              thumbColor: WidgetStatePropertyAll(Colors.white),
             )),
             _SettingItem(Icons.notifications_rounded, '消息通知'),
             _SettingItem(Icons.shield_rounded, '账号安全'),

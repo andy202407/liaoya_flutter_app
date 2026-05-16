@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/conversation_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
@@ -158,12 +159,13 @@ class _RegisterPageState extends State<RegisterPage> {
     if (success && mounted) {
       if (auth.isAuthenticated) {
         // 注册后自动登录成功，清除路由栈
+        try { context.read<ConversationProvider>().reset(); } catch (_) {}
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('注册成功，请登录')),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context).pushReplacementNamed('/login');
       }
     } else if (mounted && auth.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -193,7 +195,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 alignment: Alignment.centerLeft,
                 child: IconButton(
                   icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
                 ),
               ),
               Expanded(

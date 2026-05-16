@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/conversation_provider.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -70,6 +71,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       } else {
         await storage.clearCredentials();
       }
+      context.read<ConversationProvider>().reset();
       Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
     } else if (mounted && auth.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.error!)));

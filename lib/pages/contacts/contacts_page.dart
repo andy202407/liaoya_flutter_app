@@ -124,7 +124,14 @@ class _ContactsPageState extends State<ContactsPage> {
       leading: AvatarWidget(url: avatar, name: name, size: AppSpacing.avatarMd, avatarFrame: avatarFrame),
       title: Text((remark != null && remark.isNotEmpty) ? remark : name, style: AppTextStyles.convName.copyWith(color: isDark ? AppColors.darkText : AppColors.lightText)),
       onTap: () {
-        // TODO: 打开聊天
+        // 构造会话数据跳转到聊天
+        final conversation = {
+          'type': 1,
+          'friend_id': friendInfo?['id'],
+          'friend': friendInfo,
+          'target_id': friendInfo?['id'],
+        };
+        Navigator.of(context).pushNamed('/chat', arguments: conversation);
       },
     );
   }

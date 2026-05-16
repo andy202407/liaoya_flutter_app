@@ -32,7 +32,13 @@ class GroupListPage extends StatelessWidget {
                   subtitle: Text('$memberCount 人', style: AppTextStyles.caption.copyWith(color: AppColors.lightTextSecondary)),
                   trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                   onTap: () {
-                    // TODO: 打开群聊
+                    // 构造会话数据跳转到群聊
+                    final conversation = {
+                      'type': 2,
+                      'target_id': group['id'],
+                      'group': group,
+                    };
+                    Navigator.of(context).pushNamed('/chat', arguments: conversation);
                   },
                 );
               },

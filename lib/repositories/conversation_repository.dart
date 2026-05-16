@@ -16,14 +16,15 @@ class ConversationRepository {
       final params = <String, dynamic>{'limit': limit, 'filterType': 'all'};
       if (beforeId != null) params['before_id'] = beforeId;
       final response = await _dio.get('/conversations/', queryParameters: params);
-      if (response.data['success'] == true) {
-        final List<dynamic> data = response.data['data'] ?? [];
-        final conversations = data.cast<Map<String, dynamic>>();
-        final List<dynamic> onlineRaw = response.data['online_users'] ?? [];
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['success'] == true) {
+        final List<dynamic> list = data['data'] ?? [];
+        final conversations = list.whereType<Map<String, dynamic>>().toList();
+        final List<dynamic> onlineRaw = data['online_users'] ?? [];
         final onlineUsers = onlineRaw.whereType<int>().toList();
         return {
           'data': conversations,
-          'has_more': response.data['has_more'] ?? false,
+          'has_more': data['has_more'] ?? false,
           'online_users': onlineUsers,
         };
       }
