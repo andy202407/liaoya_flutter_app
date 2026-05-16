@@ -1,0 +1,17 @@
+class ApiConfig {
+  // 开发环境（本地后端）
+  static const String devBaseUrl = 'http://192.168.0.83:5000';
+  static const String devWsUrl = 'ws://192.168.0.83:5000';
+
+  // 生产环境
+  static const String prodBaseUrl = 'https://bb.ql52.com';
+  static const String prodWsUrl = 'wss://bb.ql52.com';
+
+  // 当前使用的环境
+  static const bool isProduction = false;
+
+  static String get baseUrl => isProduction ? prodBaseUrl : devBaseUrl;
+  static String get wsUrl => isProduction ? prodWsUrl : devWsUrl;
+  static String get apiUrl => '$baseUrl/api/v1';
+  static String get wsEndpoint => '$wsUrl/ws';
+}

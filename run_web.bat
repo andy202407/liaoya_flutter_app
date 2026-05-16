@@ -1,0 +1,3 @@
+@echo off
+echo Starting Flutter Web (CORS disabled for dev)...
+flutter run -d chrome --web-browser-flag "--disable-web-security" --web-browser-flag "--user-data-dir=C:\tmp\flutter_chrome_dev"
