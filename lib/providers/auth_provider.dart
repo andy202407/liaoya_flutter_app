@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import '../main.dart' show navigatorKey;
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/websocket_service.dart';
@@ -9,11 +10,15 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   bool _isAuthenticated = false;
+  bool _isKickedOut = false;
+  String? _kickoutMessage;
 
   Map<String, dynamic>? get user => _user;
   bool get isLoading => _isLoading;
   String? get error => _error;
   bool get isAuthenticated => _isAuthenticated;
+  bool get isKickedOut => _isKickedOut;
+  String? get kickoutMessage => _kickoutMessage;
   int? get userId => _user?['id'];
   String? get nickname => _user?['nickname'];
   String? get avatar => _user?['avatar'];
@@ -27,11 +32,86 @@ class AuthProvider extends ChangeNotifier {
         _user = userData;
       }
       _isAuthenticated = true;
+      _isKickedOut = false;
       notifyListeners();
-      // Connect WebSocket
+      // Connect WebSocket and register kickout handlers
+      _registerKickoutHandlers();
       WebSocketService.instance.connect();
       // Refresh profile (also fixes missing user data)
       await refreshProfile();
+    }
+  }
+
+  /// 注册被踢下线的 WebSocket 消息监听
+  void _registerKickoutHandlers() {
+    final ws = WebSocketService.instance;
+    // 在线时被踢（后端通过 onKickOtherDevices 回调发送）
+    ws.on('kicked_out', _handleKickedOut);
+    // 离线后重连时被踢（后端在 WS 认证阶段检测到 session 被替换）
+    ws.on('kickout', _handleKickout);
+  }
+
+  /// 移除被踢下线的监听
+  void _unregisterKickoutHandlers() {
+    final ws = WebSocketService.instance;
+    ws.off('kicked_out', _handleKickedOut);
+    ws.off('kickout', _handleKickout);
+  }
+
+  /// 处理 kicked_out 消息（在线时被踢）
+  void _handleKickedOut(Map<String, dynamic> message) {
+    final content = message['content'] ?? '您的账号已在其他设备登录';
+    final reason = content is String ? content : '您的账号已在其他设备登录';
+    debugPrint('[Auth] ⚠️ 收到 kicked_out 消息: $reason');
+    _performKickout(reason);
+  }
+
+  /// 处理 kickout 消息（离线后重连被踢）
+  void _handleKickout(Map<String, dynamic> message) {
+    String reason = '您的账号已在其他设备登录';
+    final content = message['content'];
+    if (content is Map<String, dynamic>) {
+      reason = (content['message'] as String?) ?? reason;
+    } else if (content is String) {
+      reason = content;
+    }
+    debugPrint('[Auth] ⚠️ 收到 kickout 消息: $reason');
+    _performKickout(reason);
+  }
+
+  /// 执行被踢下线逻辑：清除本地状态，跳转登录页
+  Future<void> _performKickout(String reason) async {
+    if (_isKickedOut) return; // 防止重复处理
+    _isKickedOut = true;
+    _kickoutMessage = reason;
+
+    // 断开 WebSocket（不再自动重连）
+    WebSocketService.instance.disconnect();
+
+    // 清除本地认证数据
+    final storage = await StorageService.getInstance();
+    await storage.clearAll();
+    _user = null;
+    _isAuthenticated = false;
+    notifyListeners();
+
+    // 跳转到登录页并显示提示
+    final nav = navigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamedAndRemoveUntil('/login', (_) => false);
+      // 延迟显示提示，等页面切换完成
+      Future.delayed(const Duration(milliseconds: 300), () {
+        final context = navigatorKey.currentContext;
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(reason),
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      });
     }
   }
 
@@ -43,6 +123,8 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _isLoading = true;
     _error = null;
+    _isKickedOut = false;
+    _kickoutMessage = null;
     notifyListeners();
 
     try {
@@ -81,7 +163,8 @@ class AuthProvider extends ChangeNotifier {
         _isLoading = false;
         notifyListeners();
 
-        // Connect WebSocket
+        // Connect WebSocket and register kickout handlers
+        _registerKickoutHandlers();
         WebSocketService.instance.connect();
         return true;
       } else {
@@ -135,6 +218,7 @@ class AuthProvider extends ChangeNotifier {
           await storage.setUser(user);
           _user = user;
           _isAuthenticated = true;
+          _registerKickoutHandlers();
           WebSocketService.instance.connect();
         }
         _isLoading = false;
@@ -168,16 +252,22 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      // Ignore
+      // 如果是 401 错误，说明 token 已失效（可能是离线时被踢）
+      if (e is DioException && e.response?.statusCode == 401) {
+        _performKickout('登录已过期，请重新登录');
+      }
     }
   }
 
   Future<void> logout() async {
+    _unregisterKickoutHandlers();
     WebSocketService.instance.disconnect();
     final storage = await StorageService.getInstance();
     await storage.clearAll();
     _user = null;
     _isAuthenticated = false;
+    _isKickedOut = false;
+    _kickoutMessage = null;
     notifyListeners();
   }
 }

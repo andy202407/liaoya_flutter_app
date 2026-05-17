@@ -11,6 +11,9 @@ import 'pages/home/home_page.dart';
 import 'pages/splash/splash_page.dart';
 import 'pages/chat/chat_page.dart';
 
+/// 全局 Navigator Key，用于在非 Widget 上下文中导航（如被踢下线时跳转登录页）
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const LiaoyaApp());
@@ -33,6 +36,7 @@ class LiaoyaApp extends StatelessWidget {
           return MaterialApp(
             title: '洽聊',
             debugShowCheckedModeBanner: false,
+            navigatorKey: navigatorKey,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,

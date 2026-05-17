@@ -57,10 +57,14 @@ class WebSocketService {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;
       _isConnecting = false;
-      _reconnectAttempts = 0;
       _lastPongTime = DateTime.now();
       _connectionState.add(true);
       debugPrint('[WS] Connected!');
+
+      // 连接稳定 10 秒后才重置重连计数器
+      Future.delayed(const Duration(seconds: 10), () {
+        if (_isConnected) _reconnectAttempts = 0;
+      });
 
       _startPing();
 

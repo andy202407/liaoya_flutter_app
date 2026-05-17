@@ -49,6 +49,7 @@ class _ChatPageState extends State<ChatPage> {
   int get _type => widget.conversation['type'] as int? ?? 1;
   bool get _isGroup => _type == 2;
   int? get _friendId => widget.conversation['friend']?['id'] as int?;
+  bool get _isSystemNotification => !_isGroup && _friendId == 1;
   int? get _groupId => _isGroup ? (widget.conversation['target_id'] ?? widget.conversation['group']?['id']) as int? : null;
 
   String get _chatName {
@@ -675,10 +676,11 @@ class _ChatPageState extends State<ChatPage> {
                     ),
           ),
           // 引用消息预览
-          if (_quotedMessage != null)
+          if (_quotedMessage != null && !_isSystemNotification)
             _buildQuotedPreview(isDark),
-          // 输入框
-          _buildInputBar(isDark),
+          // 输入框（系统通知不显示）
+          if (!_isSystemNotification)
+            _buildInputBar(isDark),
         ],
       ),
     );
