@@ -53,7 +53,7 @@ dependencies:
   # 现代图标
   iconsax_flutter: ^1.0.0
   # 极光推送
-  jpush_flutter: ^2.5.0
+  jpush_flutter: ^3.4.5
 
 dev_dependencies:
   flutter_test:

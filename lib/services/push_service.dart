@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:jpush_flutter/jpush_flutter.dart';
+import 'package:jpush_flutter/jpush_interface.dart';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
-import 'storage_service.dart';
 
 /// JPush 推送服务（Android 统一）
 class PushService {
-  static final JPush _jpush = JPush();
+  static final _jpush = JPush.newJPush();
   static String? _registrationId;
   static String? _authToken;
 
