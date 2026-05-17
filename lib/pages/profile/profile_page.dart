@@ -503,8 +503,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _downloadAndInstall(String apkUrl) async {
-    // 使用 url_launcher 打开下载链接（系统浏览器下载并安装）
-    final uri = Uri.parse(apkUrl);
+    String fullUrl = apkUrl;
+    if (!apkUrl.startsWith('http')) {
+      fullUrl = '${ApiConfig.baseUrl}$apkUrl';
+    }
+    final uri = Uri.parse(fullUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }

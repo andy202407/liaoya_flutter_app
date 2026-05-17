@@ -9,6 +9,7 @@ import '../../providers/conversation_provider.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_sound.dart';
 import '../../services/api/api_client.dart';
+import '../../config/api_config.dart';
 import '../../widgets/in_app_notification.dart';
 import '../chat/conversation_list_page.dart';
 import '../contacts/contacts_page.dart';
@@ -298,7 +299,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _launchApkUrl(String apkUrl) async {
-    final uri = Uri.parse(apkUrl);
+    String fullUrl = apkUrl;
+    if (!apkUrl.startsWith('http')) {
+      fullUrl = '${ApiConfig.baseUrl}$apkUrl';
+    }
+    final uri = Uri.parse(fullUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
