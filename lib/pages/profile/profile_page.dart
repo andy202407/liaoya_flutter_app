@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
+import '../../config/api_config.dart';
 import '../../services/api/api_client.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
@@ -144,7 +145,29 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         child: Row(
           children: [
-            AvatarWidget(url: avatar, name: nickname, size: 56),
+            // 头像 + 相机图标
+            GestureDetector(
+              onTap: () => _showAvatarPicker(context, auth),
+              child: Stack(
+                children: [
+                  AvatarWidget(url: avatar, name: nickname, size: 56),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: isDark ? Colors.black : Colors.white, width: 2),
+                      ),
+                      child: const Icon(Icons.camera_alt, size: 11, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -225,6 +248,76 @@ class _ProfilePageState extends State<ProfilePage> {
         thumbColor: const WidgetStatePropertyAll(Colors.white),
       ),
     );
+  }
+
+  void _showAvatarPicker(BuildContext context, AuthProvider auth) async {
+    // 获取默认头像列表
+    List<String> avatars = [];
+    try {
+      final res = await ApiClient.instance.dio.get('/user/default-avatars');
+      if (res.data['success'] == true) {
+        final List<dynamic> data = res.data['data'] ?? [];
+        avatars = data.map((e) => e.toString()).toList();
+      }
+    } catch (_) {}
+
+    if (avatars.isEmpty || !context.mounted) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用头像')));
+      return;
+    }
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (_, scrollCtrl) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('选择头像', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+            Expanded(
+              child: GridView.builder(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                ),
+                itemCount: avatars.length,
+                itemBuilder: (_, index) {
+                  final url = avatars[index];
+                  return GestureDetector(
+                    onTap: () => Navigator.pop(ctx, url),
+                    child: AvatarWidget(url: url, name: '${index + 1}', size: 54),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (selected == null || !context.mounted) return;
+
+    // 设置选中的头像
+    try {
+      final res = await ApiClient.instance.dio.post('/user/avatar/default', data: {'avatar_url': selected});
+      if (res.data['success'] == true) {
+        await auth.refreshProfile();
+        _loadLocalUser();
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('头像已更新')));
+      }
+    } catch (_) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('更新失败')));
+    }
   }
 
   void _showEditNickname(BuildContext context, AuthProvider auth, String currentNickname) {
