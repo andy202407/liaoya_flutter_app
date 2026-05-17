@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 import '../../config/api_config.dart';
 import '../../services/api/api_client.dart';
 import 'media_preview_page.dart';
+import 'group_info_page.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -598,23 +599,28 @@ class _ChatPageState extends State<ChatPage> {
       appBar: AppBar(
         centerTitle: false,
         titleSpacing: 0,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AvatarWidget(url: _chatAvatar, name: _chatName, size: 32, isGroup: _isGroup),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_chatName, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  if (_isGroup && _groupMemberCount > 0)
-                    Text('群聊 · $_groupMemberCount人', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-                ],
+        title: GestureDetector(
+          onTap: _isGroup ? () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => GroupInfoPage(groupId: _groupId!, groupName: _chatName, groupAvatar: _chatAvatar),
+          )) : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AvatarWidget(url: _chatAvatar, name: _chatName, size: 32, isGroup: _isGroup),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_chatName, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    if (_isGroup && _groupMemberCount > 0)
+                      Text('群聊 · $_groupMemberCount人', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       body: Column(
