@@ -1113,11 +1113,11 @@ class _MessageBubble extends StatelessWidget {
                       Flexible(
                         child: Container(
                           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
-                          padding: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos')
+                          padding: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab')
                               ? const EdgeInsets.all(3)
                               : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos')
+                            color: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab')
                                 ? Colors.transparent
                                 : (isMe ? AppColors.bubbleSent : (isDark ? AppColors.bubbleReceivedDark : AppColors.bubbleReceived)),
                             borderRadius: BorderRadius.only(
@@ -1126,7 +1126,7 @@ class _MessageBubble extends StatelessWidget {
                               bottomLeft: Radius.circular(isMe ? 18 : 4),
                               bottomRight: Radius.circular(isMe ? 4 : 18),
                             ),
-                            boxShadow: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos') ? null : [
+                            boxShadow: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab') ? null : [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                                 blurRadius: 4,
@@ -1347,6 +1347,12 @@ class _MessageBubble extends StatelessWidget {
     if (type == 'videos') {
       return Text('[视频]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)));
     }
+    if (type == 'red_packet') {
+      return Builder(builder: (ctx) => _buildRedPacketCard(ctx, content));
+    }
+    if (type == 'red_packet_grab') {
+      return _buildRedPacketGrabNotice(content);
+    }
     if (type == 'audio') {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -1510,6 +1516,204 @@ class _MessageBubble extends StatelessWidget {
     } catch (_) {
       return '';
     }
+  }
+
+  Widget _buildRedPacketCard(BuildContext context, String content) {
+    Map<String, dynamic> rpData = {};
+    try {
+      if (content.isNotEmpty) {
+        rpData = jsonDecode(content) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+
+    final greeting = rpData['greeting'] as String? ?? '恭喜发财，大吉大利';
+    final rpId = rpData['red_packet_id'] ?? rpData['id'];
+
+    return GestureDetector(
+      onTap: () => _openRedPacket(context, rpId),
+      child: Container(
+        width: 200,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE84D3D), Color(0xFFC0392B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.redeem, color: Color(0xFFFFD700), size: 28),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(greeting, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: const BoxDecoration(border: Border(top: BorderSide(color: Colors.white24, width: 0.5))),
+              child: const Text('红包', style: TextStyle(color: Colors.white70, fontSize: 11)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRedPacketGrabNotice(String content) {
+    String text = '';
+    try {
+      final data = jsonDecode(content) as Map<String, dynamic>;
+      final grabber = data['grabber_name'] ?? '';
+      final sender = data['sender_name'] ?? '';
+      if (grabber.isNotEmpty && sender.isNotEmpty) {
+        text = '$grabber 领取了 $sender 的红包';
+      }
+    } catch (_) {
+      text = content;
+    }
+    if (text.isEmpty) return const SizedBox.shrink();
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration: BoxDecoration(
+          color: (isDark ? Colors.white : Colors.black).withAlpha(15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(text, style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45)),
+      ),
+    );
+  }
+
+  void _openRedPacket(BuildContext context, dynamic rpId) async {
+    if (rpId == null) return;
+
+    // 先查询红包状态
+    try {
+      final dio = ApiClient.instance.dio;
+      final res = await dio.get('/user/red-packet/$rpId');
+      if (res.data['success'] != true) return;
+
+      final data = res.data['data'] as Map<String, dynamic>;
+      final myGrabAmount = (data['my_grab_amount'] as num?)?.toDouble() ?? 0;
+      final status = data['status'] as int? ?? 0;
+      final grabbedCount = data['grabbed_count'] as int? ?? 0;
+      final totalCount = data['count'] as int? ?? 0;
+
+      if (!context.mounted) return;
+
+      if (myGrabAmount > 0) {
+        // 已领取，显示详情
+        _showRedPacketDetail(context, data);
+      } else if (status == 2) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('红包已过期')));
+      } else if (grabbedCount >= totalCount) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('红包已被领完')));
+      } else {
+        // 可以领取，弹出拆红包弹窗
+        _showGrabDialog(context, rpId, data);
+      }
+    } catch (_) {}
+  }
+
+  void _showGrabDialog(BuildContext context, dynamic rpId, Map<String, dynamic> data) {
+    final greeting = data['greeting'] as String? ?? '恭喜发财';
+    final senderName = data['sender_name'] as String? ?? '';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFFE84D3D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (senderName.isNotEmpty)
+              Text('$senderName 的红包', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 12),
+            Text(greeting, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: () async {
+                Navigator.pop(ctx);
+                try {
+                  final dio = ApiClient.instance.dio;
+                  final res = await dio.post('/user/red-packet/grab', data: {'red_packet_id': rpId});
+                  if (res.data['success'] == true && context.mounted) {
+                    final amount = res.data['data']?['amount'] ?? 0;
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🎉 领取了 $amount 元'), duration: const Duration(seconds: 2)));
+                  } else if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.data['message'] ?? '领取失败')));
+                  }
+                } catch (e) {
+                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('领取失败')));
+                }
+              },
+              child: Container(
+                width: 64, height: 64,
+                decoration: const BoxDecoration(color: Color(0xFFFFD700), shape: BoxShape.circle),
+                child: const Center(child: Text('開', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFFE84D3D)))),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRedPacketDetail(BuildContext context, Map<String, dynamic> data) {
+    final greeting = data['greeting'] as String? ?? '';
+    final myAmount = (data['my_grab_amount'] as num?)?.toDouble() ?? 0;
+    final records = data['records'] as List<dynamic>? ?? [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (_, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Center(child: Text(greeting, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+            const SizedBox(height: 12),
+            Center(child: Text('¥${myAmount.toStringAsFixed(2)}', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary))),
+            const SizedBox(height: 4),
+            const Center(child: Text('你领取的金额', style: TextStyle(fontSize: 12, color: Colors.grey))),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text('领取记录 (${records.length})', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            ...records.map((r) {
+              final rMap = r as Map<String, dynamic>;
+              final name = rMap['nickname'] ?? '用户';
+              final amount = (rMap['amount'] as num?)?.toDouble() ?? 0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(name.toString(), style: const TextStyle(fontSize: 14))),
+                    Text('¥${amount.toStringAsFixed(2)}', style: TextStyle(fontSize: 14, color: AppColors.primary)),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
   }
 
   static void _showFullImage(BuildContext context, String url) {
