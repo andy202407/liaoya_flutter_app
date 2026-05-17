@@ -21,7 +21,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val TAG = "LiaoyaApp"
         private const val REQ_NOTIFICATION = 1001
-        private const val CHANNEL = "com.liaoya.liaoya_app/bridge"
+        private const val CHANNEL = "com.ql52.chat/bridge"
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

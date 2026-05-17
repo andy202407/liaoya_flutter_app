@@ -223,13 +223,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.3), width: 0.5)),
-        ),
-        child: BottomNavigationBar(
+      bottomNavigationBar: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
           items: [
             BottomNavigationBarItem(
               icon: Badge(
@@ -261,7 +261,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
           ],
         ),
-      ),
     );
   }
 }

@@ -7,7 +7,7 @@ import '../services/storage_service.dart';
 import '../services/websocket_service.dart';
 import '../services/push_service.dart';
 
-const _nativeChannel = MethodChannel('com.liaoya.liaoya_app/bridge');
+const _nativeChannel = MethodChannel('com.ql52.chat/bridge');
 
 class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? _user;

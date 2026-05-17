@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.liaoya.liaoya_app"
+    namespace = "com.ql52.chat"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.liaoya.liaoya_app"
+        applicationId = "com.ql52.chat"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 21
@@ -29,7 +29,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        manifestPlaceholders["JPUSH_PKGNAME"] = "com.liaoya.liaoya_app"
+        manifestPlaceholders["JPUSH_PKGNAME"] = "com.ql52.chat"
         manifestPlaceholders["JPUSH_APPKEY"]  = "3d906a6c5cea9851c961db1d"
         manifestPlaceholders["JPUSH_CHANNEL"] = "developer-default"
     }

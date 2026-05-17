@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
@@ -102,6 +103,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onChanged: (_) => theme.toggleTheme(),
             ),
             _buildItem(context, Iconsax.broom, '清除缓存', isDark, onTap: () => _clearCache(context)),
+            _buildItem(context, Iconsax.document_download, '检查更新', isDark, onTap: () => _checkUpdate(context)),
           ]),
 
           const SizedBox(height: AppSpacing.xxxl),
@@ -409,6 +411,58 @@ class _ProfilePageState extends State<ProfilePage> {
     if (token != null) await prefs.setString('token', token);
     if (user != null) await prefs.setString('user', user);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('缓存已清除')));
+  }
+
+  Future<void> _checkUpdate(BuildContext context) async {
+    try {
+      final dio = ApiClient.instance.dio;
+      final domain = 'bb.ql52.com';
+      final res = await dio.get('/app-download', queryParameters: {'domain': domain});
+      if (res.data?['success'] == true && res.data?['data'] != null) {
+        final apkUrl = res.data['data']['apk_url']?.toString() ?? '';
+        final latestVersion = res.data['data']['version']?.toString() ?? '';
+        if (apkUrl.isEmpty) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用更新')));
+          return;
+        }
+        // 比较版本号（简单比较，有新版本就提示）
+        const currentVersion = '1.0.0';
+        if (latestVersion.isNotEmpty && latestVersion != currentVersion) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('发现新版本'),
+              content: Text('最新版本: $latestVersion\n当前版本: $currentVersion\n\n是否立即更新？'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('稍后')),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _downloadAndInstall(apkUrl);
+                  },
+                  child: const Text('立即更新'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已是最新版本')));
+        }
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用更新')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('检查更新失败: $e')));
+    }
+  }
+
+  Future<void> _downloadAndInstall(String apkUrl) async {
+    // 使用 url_launcher 打开下载链接（系统浏览器下载并安装）
+    final uri = Uri.parse(apkUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   void _showWallet(BuildContext context) {
