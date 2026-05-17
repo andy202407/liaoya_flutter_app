@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:jpush_flutter/jpush_flutter.dart';
-import 'package:jpush_flutter/jpush_interface.dart';
 import 'package:dio/dio.dart';
 import '../config/api_config.dart';
 
-/// JPush 推送服务（Android 统一）
+/// JPush 推送服务（Android）
 class PushService {
-  static final _jpush = JPush.newJPush();
+  static final JPush _jpush = JPush();
   static String? _registrationId;
   static String? _authToken;
 
@@ -28,6 +27,19 @@ class PushService {
         _registrationId = rid;
         debugPrint('[JPush] Registration ID: $rid');
         _tryRegisterToken();
+      } else {
+        // SDK 可能还没注册完成，延迟重试
+        Future.delayed(const Duration(seconds: 3), () {
+          _jpush.getRegistrationID().then((rid2) {
+            if (rid2.isNotEmpty) {
+              _registrationId = rid2;
+              debugPrint('[JPush] Registration ID (delayed): $rid2');
+              _tryRegisterToken();
+            } else {
+              debugPrint('[JPush] Registration ID still empty after retry');
+            }
+          });
+        });
       }
     });
 

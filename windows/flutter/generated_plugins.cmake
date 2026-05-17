@@ -5,7 +5,9 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
   file_selector_windows
+  gal
   permission_handler_windows
+  share_plus
   url_launcher_windows
 )
 

@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:dio/dio.dart';
+import 'package:gal/gal.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart' show getTemporaryDirectory;
 
 /// 图片全屏预览页 - 带下载和分享
 class ImagePreviewPage extends StatelessWidget {
@@ -169,17 +175,56 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _ActionButton(icon: Icons.download_rounded, label: '下载', onTap: () => _copyLink(context)),
+          _ActionButton(icon: Icons.download_rounded, label: '下载', onTap: () => _download(context)),
           _ActionButton(icon: Icons.copy_rounded, label: '复制链接', onTap: () => _copyLink(context)),
-          _ActionButton(icon: Icons.share_rounded, label: '分享', onTap: () => _copyLink(context)),
+          _ActionButton(icon: Icons.share_rounded, label: '分享', onTap: () => _share(context)),
         ],
       ),
     );
   }
 
-  void _copyLink(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('链接已复制'), duration: Duration(seconds: 1)));
+  void _download(BuildContext context) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在保存...'), duration: Duration(seconds: 1)));
+      // 下载文件到临时目录
+      final dio = Dio();
+      final tempDir = await getTemporaryDirectory();
+      final ext = url.contains('.mp4') || url.contains('.mov') ? '.mp4' : '.jpg';
+      final filePath = '${tempDir.path}/download_${DateTime.now().millisecondsSinceEpoch}$ext';
+      await dio.download(url, filePath);
+      // 保存到相册
+      if (ext == '.mp4') {
+        await Gal.putVideo(filePath);
+      } else {
+        await Gal.putImage(filePath);
+      }
+      // 清理临时文件
+      try { File(filePath).deleteSync(); } catch (_) {}
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存到相册'), duration: Duration(seconds: 2)));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: $e'), duration: const Duration(seconds: 2)));
+      }
+    }
+  }
+
+  void _copyLink(BuildContext context) async {
+    // 尝试用浏览器打开，打不开才复制链接
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      Clipboard.setData(ClipboardData(text: url));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('链接已复制'), duration: Duration(seconds: 1)));
+      }
+    }
+  }
+
+  void _share(BuildContext context) {
+    SharePlus.instance.share(ShareParams(text: url));
   }
 }
 

@@ -48,8 +48,8 @@ flutter {
 }
 
 dependencies {
-    // 极光推送
-    implementation("cn.jiguang.sdk:jpush:5.5.3")
+    // 极光推送（jpush_flutter 插件不暴露 SDK 给 app 模块，需要手动加）
+    implementation("cn.jiguang.sdk:jpush:5.9.0")
     // 桌面角标
     implementation("me.leolin:ShortcutBadger:1.1.22")
 }

@@ -92,7 +92,8 @@ class FriendProvider extends ChangeNotifier {
   Future<bool> sendFriendRequest(int userId, String message) async {
     try {
       final response = await _dio.post('/friends/request', data: {'to_user_id': userId, 'message': message});
-      return response.data['success'] == true;
+      // 后端可能返回 success:true 或直接添加成功（不同场景返回不同消息）
+      return response.data['success'] == true || response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       debugPrint('[FriendProvider] sendRequest error: $e');
     }

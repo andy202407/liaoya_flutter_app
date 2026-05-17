@@ -2,6 +2,7 @@ package com.liaoya.liaoya_app
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -13,40 +14,24 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.liaoya.liaoya_app.push.JPushReceiver
 import io.flutter.embedding.android.FlutterActivity
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
     companion object {
         private const val TAG = "LiaoyaApp"
         private const val REQ_NOTIFICATION = 1001
-        private const val CHANNEL = "com.ql52.chat/bridge"
-    }
-
-    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "onLogin" -> {
-                        val token = call.argument<String>("token") ?: ""
-                        MyApplication.onUserLogin(application, token)
-                        requestNotificationPermission()
-                        result.success(null)
-                    }
-                    "onLogout" -> {
-                        MyApplication.onUserLogout(application)
-                        result.success(null)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermission()
         requestBatteryOptimizationWhitelist()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 清除角标和通知栏
+        JPushReceiver.clearAll(this)
     }
 
     @SuppressLint("BatteryLife")
@@ -60,11 +45,7 @@ class MainActivity : FlutterActivity() {
                         Uri.parse("package:$packageName")
                     ))
                 } catch (e: Exception) {
-                    try {
-                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    } catch (e2: Exception) {
-                        Log.w(TAG, "无法打开电池优化设置")
-                    }
+                    Log.w(TAG, "无法打开电池优化设置")
                 }
             }
         }
@@ -82,24 +63,5 @@ class MainActivity : FlutterActivity() {
                 )
             }
         }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQ_NOTIFICATION) {
-            val granted = grantResults.isNotEmpty() &&
-                    grantResults[0] == PackageManager.PERMISSION_GRANTED
-            Log.d(TAG, "通知权限: ${if (granted) "已授权" else "已拒绝"}")
-        }
-    }
-
-    // App 恢复前台：清除角标 + 通知栏所有推送
-    override fun onResume() {
-        super.onResume()
-        JPushReceiver.clearAll(this)
     }
 }

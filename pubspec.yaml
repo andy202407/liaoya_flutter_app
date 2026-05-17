@@ -42,6 +42,12 @@ dependencies:
   video_player: ^2.8.6
   # URL 启动
   url_launcher: ^6.2.5
+  # 保存图片/视频到相册
+  gal: ^2.3.0
+  # 临时目录
+  path_provider: ^2.1.2
+  # 系统分享
+  share_plus: ^9.0.0
   # HTML 渲染
   flutter_widget_from_html_core: ^0.15.2
   # Badge
@@ -51,7 +57,7 @@ dependencies:
   # 现代图标
   iconsax_flutter: ^1.0.0
   # 极光推送
-  jpush_flutter: ^3.4.5
+  jpush_flutter: 2.6.0
 
 dev_dependencies:
   flutter_test:

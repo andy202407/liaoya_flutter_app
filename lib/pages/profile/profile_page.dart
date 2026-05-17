@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
-import '../../config/api_config.dart';
 import '../../services/api/api_client.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
@@ -103,6 +102,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             _buildItem(context, Icons.cleaning_services_rounded, '清除缓存', isDark, onTap: () => _clearCache(context)),
             _buildItem(context, Icons.system_update_rounded, '检查更新', isDark, onTap: () => _checkUpdate(context)),
+            _buildVersionItem(context, isDark),
           ]),
 
           const SizedBox(height: AppSpacing.xxxl),
@@ -249,6 +249,14 @@ class _ProfilePageState extends State<ProfilePage> {
         activeColor: AppColors.primary,
         thumbColor: const WidgetStatePropertyAll(Colors.white),
       ),
+    );
+  }
+
+  Widget _buildVersionItem(BuildContext context, bool isDark) {
+    return ListTile(
+      leading: Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 22),
+      title: Text('当前版本', style: AppTextStyles.body),
+      trailing: Text('1.0.0', style: TextStyle(fontSize: 14, color: isDark ? Colors.white38 : Colors.black45)),
     );
   }
 
@@ -415,26 +423,42 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _checkUpdate(BuildContext context) async {
     try {
       final dio = ApiClient.instance.dio;
-      final domain = 'bb.ql52.com';
-      final res = await dio.get('/app-download', queryParameters: {'domain': domain});
+      final res = await dio.get('/android/config');
       if (res.data?['success'] == true && res.data?['data'] != null) {
-        final apkUrl = res.data['data']['apk_url']?.toString() ?? '';
-        final latestVersion = res.data['data']['version']?.toString() ?? '';
-        if (apkUrl.isEmpty) {
+        final data = res.data['data'];
+        final apkUrl = data['apk_url']?.toString() ?? '';
+        final latestVersion = data['version']?.toString() ?? '';
+        final updateMessage = data['update_message']?.toString() ?? '';
+        final forceUpdate = data['force_update'] == true;
+        if (apkUrl.isEmpty || latestVersion.isEmpty) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用更新')));
           return;
         }
-        // 比较版本号（简单比较，有新版本就提示）
         const currentVersion = '1.0.0';
-        if (latestVersion.isNotEmpty && latestVersion != currentVersion) {
+        if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           showDialog(
             context: context,
+            barrierDismissible: !forceUpdate,
             builder: (ctx) => AlertDialog(
               title: const Text('发现新版本'),
-              content: Text('最新版本: $latestVersion\n当前版本: $currentVersion\n\n是否立即更新？'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('最新版本: $latestVersion'),
+                  Text('当前版本: $currentVersion'),
+                  if (updateMessage.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text('更新内容:', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(updateMessage),
+                  ],
+                ],
+              ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('稍后')),
+                if (!forceUpdate)
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('稍后')),
                 TextButton(
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -454,6 +478,20 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('检查更新失败: $e')));
     }
+  }
+
+  /// Compare two version strings (e.g. "1.0.1" vs "1.0.0")
+  /// Returns positive if v1 > v2, negative if v1 < v2, 0 if equal
+  int _compareVersions(String v1, String v2) {
+    final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final len = parts1.length > parts2.length ? parts1.length : parts2.length;
+    for (int i = 0; i < len; i++) {
+      final p1 = i < parts1.length ? parts1[i] : 0;
+      final p2 = i < parts2.length ? parts2[i] : 0;
+      if (p1 != p2) return p1 - p2;
+    }
+    return 0;
   }
 
   Future<void> _downloadAndInstall(String apkUrl) async {

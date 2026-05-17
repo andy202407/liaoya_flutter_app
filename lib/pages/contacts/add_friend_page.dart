@@ -65,7 +65,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
   Future<void> _sendRequest(int userId) async {
     final success = await context.read<FriendProvider>().sendFriendRequest(userId, '我想添加您为好友');
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('好友申请已发送')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('操作成功')));
       // 延迟刷新会话列表（自动通过时新会话需要出现）
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) context.read<ConversationProvider>().loadConversations();

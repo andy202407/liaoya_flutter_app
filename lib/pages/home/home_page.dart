@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/conversation_provider.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_sound.dart';
+import '../../services/api/api_client.dart';
 import '../../widgets/in_app_notification.dart';
 import '../chat/conversation_list_page.dart';
 import '../contacts/contacts_page.dart';
@@ -21,6 +24,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _currentIndex = 0;
   bool _wsConnected = true;
+  bool _hasUpdate = false;
 
   final _pages = const [
     ConversationListPage(),
@@ -64,6 +68,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       WebSocketService.instance.on('audio', _showMessageNotification);
       WebSocketService.instance.on('file', _showMessageNotification);
       WebSocketService.instance.on('group_message', _showGroupMessageNotification);
+
+      // 检查 Android 版本更新
+      _checkForUpdate();
     });
   }
 
@@ -212,6 +219,102 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// Check for Android app update silently on startup
+  Future<void> _checkForUpdate() async {
+    try {
+      final dio = ApiClient.instance.dio;
+      final res = await dio.get('/android/config');
+      if (res.data?['success'] == true && res.data?['data'] != null) {
+        final data = res.data['data'];
+        final latestVersion = data['version']?.toString() ?? '';
+        final apkUrl = data['apk_url']?.toString() ?? '';
+        final updateMessage = data['update_message']?.toString() ?? '';
+        final forceUpdate = data['force_update'] == true;
+
+        if (latestVersion.isEmpty || apkUrl.isEmpty) return;
+
+        const currentVersion = '1.0.0';
+        if (_compareVersions(latestVersion, currentVersion) > 0) {
+          if (!mounted) return;
+          setState(() => _hasUpdate = true);
+
+          // Show update dialog only once per version (store dismissed version)
+          final prefs = await SharedPreferences.getInstance();
+          final dismissedVersion = prefs.getString('dismissed_update_version') ?? '';
+          if (dismissedVersion != latestVersion) {
+            if (!mounted) return;
+            _showUpdateDialog(latestVersion, apkUrl, updateMessage, forceUpdate);
+          }
+        }
+      }
+    } catch (_) {
+      // Silently fail - don't disturb user on network errors
+    }
+  }
+
+  void _showUpdateDialog(String latestVersion, String apkUrl, String updateMessage, bool forceUpdate) {
+    showDialog(
+      context: context,
+      barrierDismissible: !forceUpdate,
+      builder: (ctx) => AlertDialog(
+        title: const Text('发现新版本'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('最新版本: $latestVersion'),
+            const Text('当前版本: 1.0.0'),
+            if (updateMessage.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text('更新内容:', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(updateMessage),
+            ],
+          ],
+        ),
+        actions: [
+          if (!forceUpdate)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                // Mark this version as dismissed
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('dismissed_update_version', latestVersion);
+              },
+              child: const Text('稍后'),
+            ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _launchApkUrl(apkUrl);
+            },
+            child: const Text('立即更新'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _launchApkUrl(String apkUrl) async {
+    final uri = Uri.parse(apkUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  /// Compare two version strings (e.g. "1.0.1" vs "1.0.0")
+  int _compareVersions(String v1, String v2) {
+    final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final len = parts1.length > parts2.length ? parts1.length : parts2.length;
+    for (int i = 0; i < len; i++) {
+      final p1 = i < parts1.length ? parts1[i] : 0;
+      final p2 = i < parts2.length ? parts2[i] : 0;
+      if (p1 != p2) return p1 - p2;
+    }
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final convProvider = context.watch<ConversationProvider>();
@@ -253,9 +356,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               activeIcon: Icon(Icons.explore_rounded),
               label: '发现',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline_rounded),
-              activeIcon: Icon(Icons.person_rounded),
+            BottomNavigationBarItem(
+              icon: Badge(
+                isLabelVisible: _hasUpdate,
+                smallSize: 8,
+                child: const Icon(Icons.person_outline_rounded),
+              ),
+              activeIcon: Badge(
+                isLabelVisible: _hasUpdate,
+                smallSize: 8,
+                child: const Icon(Icons.person_rounded),
+              ),
               label: '我的',
             ),
           ],

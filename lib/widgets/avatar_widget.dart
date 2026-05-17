@@ -75,7 +75,8 @@ class AvatarWidget extends StatelessWidget {
 
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
 
-    if (fullUrl != null && fullUrl.isNotEmpty) {
+    // SVG 格式不支持解码，直接用占位符
+    if (fullUrl != null && fullUrl.isNotEmpty && !fullUrl.toLowerCase().endsWith('.svg')) {
       return Container(
         width: size,
         height: size,
