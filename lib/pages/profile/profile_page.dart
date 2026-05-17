@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
 import '../../services/api/api_client.dart';
+import '../../config/api_config.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -25,6 +26,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   bool _soundEnabled = true;
   bool _popupEnabled = true;
+  bool _hasUpdate = false;
   Map<String, dynamic>? _localUser;
 
   @override
@@ -32,6 +34,24 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _loadNotifSettings();
     _loadLocalUser();
+    _checkHasUpdate();
+  }
+
+  Future<void> _checkHasUpdate() async {
+    try {
+      final dio = ApiClient.instance.dio;
+      final res = await dio.get('/android/config');
+      if (res.data?['success'] == true && res.data?['data'] != null) {
+        final data = res.data['data'];
+        final latestVersion = data['version']?.toString() ?? '';
+        final apkUrl = data['apk_url']?.toString() ?? '';
+        if (latestVersion.isEmpty || apkUrl.isEmpty) return;
+        final packageInfo = await PackageInfo.fromPlatform();
+        if (_compareVersions(latestVersion, packageInfo.version) > 0) {
+          if (mounted) setState(() => _hasUpdate = true);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadLocalUser() async {
@@ -102,7 +122,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onChanged: (_) => theme.toggleTheme(),
             ),
             _buildItem(context, Icons.cleaning_services_rounded, '清除缓存', isDark, onTap: () => _clearCache(context)),
-            _buildItem(context, Icons.system_update_rounded, '检查更新', isDark, onTap: () => _checkUpdate(context)),
+            _buildUpdateItem(context, isDark),
             _buildVersionItem(context, isDark),
           ]),
 
@@ -250,6 +270,31 @@ class _ProfilePageState extends State<ProfilePage> {
         activeColor: AppColors.primary,
         thumbColor: const WidgetStatePropertyAll(Colors.white),
       ),
+    );
+  }
+
+  Widget _buildUpdateItem(BuildContext context, bool isDark) {
+    return ListTile(
+      leading: Badge(
+        isLabelVisible: _hasUpdate,
+        smallSize: 8,
+        child: Icon(Icons.system_update_rounded, color: AppColors.primary, size: 22),
+      ),
+      title: Row(
+        children: [
+          Text('检查更新', style: AppTextStyles.body),
+          if (_hasUpdate) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(8)),
+              child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ],
+      ),
+      trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? Colors.white24 : Colors.black26),
+      onTap: () => _checkUpdate(context),
     );
   }
 

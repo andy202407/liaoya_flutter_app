@@ -459,6 +459,9 @@ class _ChatPageState extends State<ChatPage> {
   int? _selectedMessageId; // 当前选中的消息ID（显示操作按钮）
 
   Future<void> _pickAndSendImage() async {
+    // 先收起键盘，避免选择器返回后键盘区域残留
+    FocusScope.of(context).unfocus();
+    
     final picker = ImagePicker();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,

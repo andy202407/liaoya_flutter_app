@@ -1,5 +1,5 @@
-name: liaoya_app
-description: "洽聊 - 即时通讯App"
+﻿name: liaoya_app
+description: "æ´½èŠ - å³æ—¶é€šè®¯App"
 publish_to: 'none'
 version: 2.0.0+2
 
@@ -10,55 +10,55 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  # 状态管理
+  # çŠ¶æ€ç®¡ç†
   provider: ^6.1.2
   # HTTP
   dio: ^5.4.3
   # WebSocket
   web_socket_channel: ^3.0.1
-  # 本地存储
+  # æœ¬åœ°å­˜å‚¨
   shared_preferences: ^2.2.3
-  # 路由
+  # è·¯ç”±
   go_router: ^14.2.0
-  # 图片缓存
+  # å›¾ç‰‡ç¼“å­˜
   cached_network_image: ^3.3.1
-  # 图片选择
+  # å›¾ç‰‡é€‰æ‹©
   image_picker: ^1.0.7
-  # 文件选择
+  # æ–‡ä»¶é€‰æ‹©
   file_picker: ^8.0.0
-  # 权限
+  # æƒé™
   permission_handler: ^11.3.0
-  # JSON 序列化
+  # JSON åºåˆ—åŒ–
   json_annotation: ^4.8.1
-  # 时间格式化
+  # æ—¶é—´æ ¼å¼åŒ–
   intl: ^0.19.0
-  # 下拉刷新
+  # ä¸‹æ‹‰åˆ·æ–°
   pull_to_refresh: ^2.0.0
-  # 图片查看器
+  # å›¾ç‰‡æŸ¥çœ‹å™¨
   photo_view: ^0.15.0
-  # 音频播放
+  # éŸ³é¢‘æ’­æ”¾
   audioplayers: ^6.0.0
-  # 视频播放
+  # è§†é¢‘æ’­æ”¾
   video_player: ^2.8.6
-  # URL 启动
+  # URL å¯åŠ¨
   url_launcher: ^6.2.5
-  # 保存图片/视频到相册
+  # ä¿å­˜å›¾ç‰‡/è§†é¢‘åˆ°ç›¸å†Œ
   gal: ^2.3.0
-  # 临时目录
+  # ä¸´æ—¶ç›®å½•
   path_provider: ^2.1.2
-  # 系统分享
+  # ç³»ç»Ÿåˆ†äº«
   share_plus: ^9.0.0
-  # 获取应用版本号
+  # èŽ·å–åº”ç”¨ç‰ˆæœ¬å·
   package_info_plus: ^8.0.0
-  # HTML 渲染
+  # HTML æ¸²æŸ“
   flutter_widget_from_html_core: ^0.15.2
   # Badge
   badges: ^3.1.2
   # shimmer loading
   shimmer: ^3.0.0
-  # 现代图标
+  # çŽ°ä»£å›¾æ ‡
   iconsax_flutter: ^1.0.0
-  # 极光推送
+  # æžå…‰æŽ¨é€
   jpush_flutter: 2.6.0
 
 dev_dependencies:

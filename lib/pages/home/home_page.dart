@@ -224,8 +224,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   /// Check for Android app update silently on startup
   Future<void> _checkForUpdate() async {
     try {
+      debugPrint('[Update] Checking for update...');
       final dio = ApiClient.instance.dio;
       final res = await dio.get('/android/config');
+      debugPrint('[Update] Response: ${res.data}');
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];
         final latestVersion = data['version']?.toString() ?? '';
@@ -233,10 +235,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final updateMessage = data['update_message']?.toString() ?? '';
         final forceUpdate = data['force_update'] == true;
 
-        if (latestVersion.isEmpty || apkUrl.isEmpty) return;
+        if (latestVersion.isEmpty || apkUrl.isEmpty) {
+          debugPrint('[Update] No version or apk_url, skip');
+          return;
+        }
 
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = packageInfo.version;
+        debugPrint('[Update] latest=$latestVersion current=$currentVersion');
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           setState(() => _hasUpdate = true);
@@ -244,14 +250,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           // Show update dialog only once per version (store dismissed version)
           final prefs = await SharedPreferences.getInstance();
           final dismissedVersion = prefs.getString('dismissed_update_version') ?? '';
+          debugPrint('[Update] dismissed=$dismissedVersion');
           if (dismissedVersion != latestVersion) {
             if (!mounted) return;
             _showUpdateDialog(latestVersion, apkUrl, updateMessage, forceUpdate);
           }
         }
       }
-    } catch (_) {
-      // Silently fail - don't disturb user on network errors
+    } catch (e) {
+      debugPrint('[Update] Error: $e');
     }
   }
 

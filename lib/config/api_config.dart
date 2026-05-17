@@ -4,8 +4,8 @@ class ApiConfig {
   static const String devWsUrl = 'ws://192.168.0.83:5000';
 
   // 生产环境
-  static const String prodBaseUrl = 'https://bb.ql52.com';
-  static const String prodWsUrl = 'wss://bb.ql52.com';
+  static const String prodBaseUrl = 'https://aapi.ql52.com';
+  static const String prodWsUrl = 'wss://aapi.ql52.com';
 
   // 当前使用的环境
   static const bool isProduction = true;
