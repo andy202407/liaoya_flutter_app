@@ -224,7 +224,7 @@ class _BottomBar extends StatelessWidget {
   }
 
   void _share(BuildContext context) {
-    SharePlus.instance.share(ShareParams(text: url));
+    Share.share(url);
   }
 }
 

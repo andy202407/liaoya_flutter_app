@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../providers/conversation_provider.dart';
 import '../../services/websocket_service.dart';
@@ -233,7 +234,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
         if (latestVersion.isEmpty || apkUrl.isEmpty) return;
 
-        const currentVersion = '1.0.0';
+        final packageInfo = await PackageInfo.fromPlatform();
+        final currentVersion = packageInfo.version;
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           setState(() => _hasUpdate = true);

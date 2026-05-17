@@ -1,7 +1,7 @@
 name: liaoya_app
 description: "洽聊 - 即时通讯App"
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+2
 
 environment:
   sdk: ^3.7.2
@@ -48,6 +48,8 @@ dependencies:
   path_provider: ^2.1.2
   # 系统分享
   share_plus: ^9.0.0
+  # 获取应用版本号
+  package_info_plus: ^8.0.0
   # HTML 渲染
   flutter_widget_from_html_core: ^0.15.2
   # Badge

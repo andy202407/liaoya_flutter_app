@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
@@ -253,10 +254,16 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildVersionItem(BuildContext context, bool isDark) {
-    return ListTile(
-      leading: Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 22),
-      title: Text('当前版本', style: AppTextStyles.body),
-      trailing: Text('1.0.0', style: TextStyle(fontSize: 14, color: isDark ? Colors.white38 : Colors.black45)),
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final version = snapshot.data?.version ?? '...';
+        return ListTile(
+          leading: Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 22),
+          title: Text('当前版本', style: AppTextStyles.body),
+          trailing: Text(version, style: TextStyle(fontSize: 14, color: isDark ? Colors.white38 : Colors.black45)),
+        );
+      },
     );
   }
 
@@ -434,7 +441,8 @@ class _ProfilePageState extends State<ProfilePage> {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用更新')));
           return;
         }
-        const currentVersion = '1.0.0';
+        final packageInfo = await PackageInfo.fromPlatform();
+        final currentVersion = packageInfo.version;
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           showDialog(
