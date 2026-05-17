@@ -10,12 +10,17 @@ import 'pages/auth/register_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/splash/splash_page.dart';
 import 'pages/chat/chat_page.dart';
+import 'services/push_service.dart';
 
 /// 全局 Navigator Key，用于在非 Widget 上下文中导航（如被踢下线时跳转登录页）
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 初始化 JPush 推送（Android）
+  await PushService.init();
+
   runApp(const LiaoyaApp());
 }
 

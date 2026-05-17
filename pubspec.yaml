@@ -52,6 +52,8 @@ dependencies:
   shimmer: ^3.0.0
   # 现代图标
   iconsax_flutter: ^1.0.0
+  # 极光推送
+  jpush_flutter: ^2.5.0
 
 dev_dependencies:
   flutter_test:

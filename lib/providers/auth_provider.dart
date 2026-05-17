@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../main.dart' show navigatorKey;
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/websocket_service.dart';
+import '../services/push_service.dart';
+
+const _nativeChannel = MethodChannel('com.liaoya.liaoya_app/bridge');
 
 class AuthProvider extends ChangeNotifier {
   Map<String, dynamic>? _user;
@@ -37,6 +41,11 @@ class AuthProvider extends ChangeNotifier {
       // Connect WebSocket and register kickout handlers
       _registerKickoutHandlers();
       WebSocketService.instance.connect();
+      // 注册推送 token 并清除角标
+      PushService.setAuthToken(token);
+      PushService.clearBadge();
+      // 通知原生层（JPush 上报）
+      try { _nativeChannel.invokeMethod('onLogin', {'token': token}); } catch (_) {}
       // Refresh profile (also fixes missing user data)
       await refreshProfile();
     }
@@ -166,6 +175,11 @@ class AuthProvider extends ChangeNotifier {
         // Connect WebSocket and register kickout handlers
         _registerKickoutHandlers();
         WebSocketService.instance.connect();
+        // 注册推送 token 并清除角标
+        PushService.setAuthToken(token);
+        PushService.clearBadge();
+        // 通知原生层（JPush 上报）
+        try { _nativeChannel.invokeMethod('onLogin', {'token': token}); } catch (_) {}
         return true;
       } else {
         _error = data['message'] ?? '登录失败';
@@ -220,6 +234,8 @@ class AuthProvider extends ChangeNotifier {
           _isAuthenticated = true;
           _registerKickoutHandlers();
           WebSocketService.instance.connect();
+          PushService.setAuthToken(token);
+          PushService.clearBadge();
         }
         _isLoading = false;
         notifyListeners();
@@ -262,6 +278,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _unregisterKickoutHandlers();
     WebSocketService.instance.disconnect();
+    await PushService.unregister();
+    // 通知原生层
+    try { _nativeChannel.invokeMethod('onLogout'); } catch (_) {}
     final storage = await StorageService.getInstance();
     await storage.clearAll();
     _user = null;

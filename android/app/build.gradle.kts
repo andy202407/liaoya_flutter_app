@@ -28,6 +28,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        manifestPlaceholders["JPUSH_PKGNAME"] = "com.liaoya.liaoya_app"
+        manifestPlaceholders["JPUSH_APPKEY"]  = "3d906a6c5cea9851c961db1d"
+        manifestPlaceholders["JPUSH_CHANNEL"] = "developer-default"
     }
 
     buildTypes {
@@ -41,4 +45,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // 极光推送
+    implementation("cn.jiguang.sdk:jpush:5.5.3")
+    // 桌面角标
+    implementation("me.leolin:ShortcutBadger:1.1.22")
 }
