@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../config/api_config.dart';
 import 'avatar_widget.dart';
 
@@ -214,7 +213,7 @@ class _NotificationBannerState extends State<_NotificationBanner> with SingleTic
                     ),
                   ),
                   // 箭头
-                  Icon(Iconsax.arrow_right_3, size: 18, color: isDark ? Colors.white38 : Colors.black26),
+                  Icon(Icons.chevron_right, size: 18, color: isDark ? Colors.white38 : Colors.black26),
                 ],
               ),
             ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/friend_provider.dart';
 import '../../theme/app_colors.dart';
@@ -31,7 +30,7 @@ class GroupListPage extends StatelessWidget {
                   leading: AvatarWidget(url: avatar, name: name, size: AppSpacing.avatarMd, isGroup: true),
                   title: Text(name, style: AppTextStyles.convName.copyWith(color: isDark ? AppColors.darkText : AppColors.lightText)),
                   subtitle: Text('$memberCount 人', style: AppTextStyles.caption.copyWith(color: AppColors.lightTextSecondary)),
-                  trailing: Icon(Iconsax.arrow_right_3, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                  trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                   onTap: () {
                     // 构造会话数据跳转到群聊
                     final conversation = {

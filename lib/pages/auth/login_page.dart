@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
 import '../../services/storage_service.dart';
@@ -173,7 +173,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                             _buildInputField(
                               controller: _usernameController,
                               hint: '请输入用户名',
-                              icon: Iconsax.profile_circle,
+                              icon: Iconsax.user_copy,
                               isDark: isDark,
                             ),
                             const SizedBox(height: 16),
@@ -181,7 +181,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                             _buildInputField(
                               controller: _passwordController,
                               hint: '请输入密码',
-                              icon: Iconsax.lock,
+                              icon: Iconsax.lock_copy,
                               isDark: isDark,
                               obscure: _obscurePassword,
                               suffix: GestureDetector(

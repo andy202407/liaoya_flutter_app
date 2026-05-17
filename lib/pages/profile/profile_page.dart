@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -76,8 +75,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // 账号信息
           _buildSection(context, '账号信息', [
-            _buildItem(context, Iconsax.wallet_3, '我的钱包', isDark, onTap: () => _showWallet(context)),
-            _buildItem(context, Iconsax.lock, '修改密码', isDark, onTap: () => _showChangePassword(context)),
+            _buildItem(context, Icons.wallet_rounded, '我的钱包', isDark, onTap: () => _showWallet(context)),
+            _buildItem(context, Icons.lock_outline_rounded, '修改密码', isDark, onTap: () => _showChangePassword(context)),
           ]),
 
           const SizedBox(height: AppSpacing.sm),
@@ -98,12 +97,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // 应用偏好
           _buildSection(context, '应用偏好', [
-            _buildSwitchItem(context, Iconsax.moon, '深色模式', null, isDark,
+            _buildSwitchItem(context, Icons.dark_mode_rounded, '深色模式', null, isDark,
               value: theme.isDark,
               onChanged: (_) => theme.toggleTheme(),
             ),
-            _buildItem(context, Iconsax.broom, '清除缓存', isDark, onTap: () => _clearCache(context)),
-            _buildItem(context, Iconsax.document_download, '检查更新', isDark, onTap: () => _checkUpdate(context)),
+            _buildItem(context, Icons.cleaning_services_rounded, '清除缓存', isDark, onTap: () => _clearCache(context)),
+            _buildItem(context, Icons.system_update_rounded, '检查更新', isDark, onTap: () => _checkUpdate(context)),
           ]),
 
           const SizedBox(height: AppSpacing.xxxl),
@@ -165,7 +164,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         shape: BoxShape.circle,
                         border: Border.all(color: isDark ? Colors.black : Colors.white, width: 2),
                       ),
-                      child: const Icon(Iconsax.camera, size: 11, color: Colors.white),
+                      child: const Icon(Icons.camera_alt, size: 11, color: Colors.white),
                     ),
                   ),
                 ],
@@ -180,7 +179,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       Text(nickname, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
                       const SizedBox(width: 6),
-                      Icon(Iconsax.edit_2, size: 14, color: isDark ? Colors.white38 : Colors.black26),
+                      Icon(Icons.edit, size: 14, color: isDark ? Colors.white38 : Colors.black26),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -195,14 +194,14 @@ class _ProfilePageState extends State<ProfilePage> {
                       children: [
                         Text('ID: $userId', style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38)),
                         const SizedBox(width: 4),
-                        Icon(Iconsax.copy, size: 12, color: isDark ? Colors.white38 : Colors.black26),
+                        Icon(Icons.copy, size: 12, color: isDark ? Colors.white38 : Colors.black26),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Iconsax.arrow_right_3, size: 18, color: isDark ? Colors.white24 : Colors.black26),
+            Icon(Icons.chevron_right_rounded, size: 18, color: isDark ? Colors.white24 : Colors.black26),
           ],
         ),
       ),
@@ -234,7 +233,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return ListTile(
       leading: Icon(icon, color: AppColors.primary, size: 22),
       title: Text(title, style: AppTextStyles.body),
-      trailing: Icon(Iconsax.arrow_right_3, size: 16, color: isDark ? Colors.white24 : Colors.black26),
+      trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? Colors.white24 : Colors.black26),
       onTap: onTap,
     );
   }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
@@ -12,7 +11,7 @@ class AppEmpty extends StatelessWidget {
 
   const AppEmpty({
     super.key,
-    this.icon = Iconsax.box,
+    this.icon = Icons.inbox_outlined,
     this.message = '暂无数据',
     this.actionText,
     this.onAction,

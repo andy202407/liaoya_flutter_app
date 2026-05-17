@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../services/api/api_client.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/avatar_widget.dart';
@@ -246,9 +245,9 @@ class _CheckInPageState extends State<CheckInPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(icon: const Icon(Iconsax.arrow_left_2), onPressed: _prevMonth),
+              IconButton(icon: const Icon(Icons.chevron_left), onPressed: _prevMonth),
               Text('$_year年$_month月', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-              IconButton(icon: const Icon(Iconsax.arrow_right_3), onPressed: _nextMonth),
+              IconButton(icon: const Icon(Icons.chevron_right), onPressed: _nextMonth),
             ],
           ),
           const SizedBox(height: 8),
@@ -352,7 +351,7 @@ class _CheckInPageState extends State<CheckInPage> {
         children: [
           Row(
             children: [
-              const Icon(Iconsax.medal_star, color: Color(0xFFFFB800), size: 20),
+              const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFB800), size: 20),
               const SizedBox(width: 6),
               Text('连续签到排行榜', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
               const Spacer(),
