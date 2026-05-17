@@ -36,8 +36,6 @@ dependencies:
   pull_to_refresh: ^2.0.0
   # 图片查看器
   photo_view: ^0.15.0
-  # 录音
-  record: ^6.2.0
   # 音频播放
   audioplayers: ^6.0.0
   # 视频播放

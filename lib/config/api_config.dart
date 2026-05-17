@@ -8,7 +8,7 @@ class ApiConfig {
   static const String prodWsUrl = 'wss://bb.ql52.com';
 
   // 当前使用的环境
-  static const bool isProduction = false;
+  static const bool isProduction = true;
 
   static String get baseUrl => isProduction ? prodBaseUrl : devBaseUrl;
   static String get wsUrl => isProduction ? prodWsUrl : devWsUrl;
