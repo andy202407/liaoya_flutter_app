@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import '../../services/api/api_client.dart';
 import '../../config/api_config.dart';
@@ -101,7 +102,7 @@ class _OfficialAccountDetailPageState extends State<OfficialAccountDetailPage> {
               ? Center(child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.article_outlined, size: 48, color: isDark ? Colors.white24 : Colors.black26),
+                    Icon(Iconsax.document_text, size: 48, color: isDark ? Colors.white24 : Colors.black26),
                     const SizedBox(height: 12),
                     Text('暂无文章', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)),
                   ],
@@ -173,7 +174,7 @@ class _OfficialAccountDetailPageState extends State<OfficialAccountDetailPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Iconsax.arrow_left),
           onPressed: () => setState(() => _viewingArticle = null),
         ),
         title: Text(_name),
@@ -204,7 +205,7 @@ class _OfficialAccountDetailPageState extends State<OfficialAccountDetailPage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(liked ? Icons.thumb_up : Icons.thumb_up_outlined, size: 18, color: liked ? AppColors.primary : (isDark ? Colors.white54 : Colors.black45)),
+                      Icon(liked ? Iconsax.like_1_copy : Iconsax.like_1, size: 18, color: liked ? AppColors.primary : (isDark ? Colors.white54 : Colors.black45)),
                       const SizedBox(width: 6),
                       Text('$likes', style: TextStyle(color: liked ? AppColors.primary : (isDark ? Colors.white54 : Colors.black45))),
                     ],

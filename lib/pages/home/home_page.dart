@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 
 import '../../providers/conversation_provider.dart';
 import '../../services/websocket_service.dart';
@@ -234,28 +235,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: Badge(
                 isLabelVisible: unread > 0,
                 label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10)),
-                child: const Icon(Icons.chat_bubble_outline_rounded),
+                child: const Icon(Iconsax.message),
               ),
               activeIcon: Badge(
                 isLabelVisible: unread > 0,
                 label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10)),
-                child: const Icon(Icons.chat_bubble_rounded),
+                child: const Icon(Iconsax.message_copy),
               ),
               label: '消息',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline_rounded),
-              activeIcon: Icon(Icons.people_rounded),
+              icon: Icon(Iconsax.people),
+              activeIcon: Icon(Iconsax.people_copy),
               label: '通讯录',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.explore_outlined),
-              activeIcon: Icon(Icons.explore_rounded),
+              icon: Icon(Iconsax.discover),
+              activeIcon: Icon(Iconsax.discover_copy),
               label: '发现',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline_rounded),
-              activeIcon: Icon(Icons.person_rounded),
+              icon: Icon(Iconsax.profile_circle),
+              activeIcon: Icon(Iconsax.profile_circle_copy),
               label: '我的',
             ),
           ],

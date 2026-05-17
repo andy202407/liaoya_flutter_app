@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../services/api/api_client.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
@@ -81,7 +82,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
                         child: Icon(_getIcon(key), color: color, size: 20),
                       ),
                       title: Text(name, style: AppTextStyles.body.copyWith(color: isDark ? AppColors.darkText : AppColors.lightText)),
-                      trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                      trailing: Icon(Iconsax.arrow_right_3, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                       onTap: () => _onItemTap(key),
                     ),
                   );
@@ -99,18 +100,18 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   IconData _getIcon(String key) {
     switch (key) {
-      case 'checkin': return Icons.check_circle_rounded;
-      case 'official': return Icons.article_rounded;
-      case 'video': return Icons.play_circle_rounded;
-      case 'sports': return Icons.live_tv_rounded;
-      case 'moments': return Icons.photo_camera_rounded;
-      case 'shake': return Icons.vibration_rounded;
-      case 'bottle': return Icons.water_drop_rounded;
-      case 'games': return Icons.sports_esports_rounded;
-      case 'miniprogram': return Icons.apps_rounded;
-      case 'shopping': return Icons.shopping_bag_rounded;
-      case 'nearby': return Icons.location_on_rounded;
-      default: return Icons.explore_rounded;
+      case 'checkin': return Iconsax.tick_circle_copy;
+      case 'official': return Iconsax.document_text;
+      case 'video': return Iconsax.play_circle_copy;
+      case 'sports': return Iconsax.monitor;
+      case 'moments': return Iconsax.camera;
+      case 'shake': return Iconsax.mobile;
+      case 'bottle': return Iconsax.drop;
+      case 'games': return Iconsax.game;
+      case 'miniprogram': return Iconsax.element_3;
+      case 'shopping': return Iconsax.bag_2;
+      case 'nearby': return Iconsax.location;
+      default: return Iconsax.discover_copy;
     }
   }
 

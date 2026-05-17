@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
@@ -194,7 +195,7 @@ class _RegisterPageState extends State<RegisterPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                  icon: const Icon(Iconsax.arrow_left, color: Colors.white),
                   onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
                 ),
               ),
@@ -221,13 +222,13 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                         child: Column(
                           children: [
-                            _buildField(_usernameController, '用户名', Icons.person_outline, error: _usernameError, hint: '6位以上字母和数字'),
+                            _buildField(_usernameController, '用户名', Iconsax.profile_circle, error: _usernameError, hint: '6位以上字母和数字'),
                             const SizedBox(height: 16),
-                            _buildField(_nicknameController, '昵称', Icons.badge_outlined, error: _nicknameError, hint: '中文、英文或数字'),
+                            _buildField(_nicknameController, '昵称', Iconsax.user_tag, error: _nicknameError, hint: '中文、英文或数字'),
                             const SizedBox(height: 16),
-                            _buildField(_passwordController, '密码', Icons.lock_outline, error: _passwordError, hint: '8位以上，含大小写或数字', obscure: _obscurePassword, toggleObscure: () => setState(() => _obscurePassword = !_obscurePassword)),
+                            _buildField(_passwordController, '密码', Iconsax.lock, error: _passwordError, hint: '8位以上，含大小写或数字', obscure: _obscurePassword, toggleObscure: () => setState(() => _obscurePassword = !_obscurePassword)),
                             const SizedBox(height: 16),
-                            _buildField(_confirmPasswordController, '确认密码', Icons.lock_outline, error: _confirmError, hint: '再次输入密码', obscure: _obscureConfirm, toggleObscure: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                            _buildField(_confirmPasswordController, '确认密码', Iconsax.lock, error: _confirmError, hint: '再次输入密码', obscure: _obscureConfirm, toggleObscure: () => setState(() => _obscureConfirm = !_obscureConfirm)),
                             const SizedBox(height: 20),
 
                             // 协议
@@ -289,7 +290,7 @@ class _RegisterPageState extends State<RegisterPage> {
             hintText: hint ?? label,
             prefixIcon: Icon(icon),
             suffixIcon: toggleObscure != null
-                ? IconButton(icon: Icon(obscure ? Icons.visibility_off : Icons.visibility), onPressed: toggleObscure)
+                ? IconButton(icon: Icon(obscure ? Iconsax.eye_slash : Iconsax.eye), onPressed: toggleObscure)
                 : null,
             errorText: error,
             errorMaxLines: 2,

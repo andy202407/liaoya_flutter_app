@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
 
@@ -26,7 +27,7 @@ class ImagePreviewPage extends StatelessWidget {
             top: MediaQuery.of(context).padding.top + 8,
             left: 8,
             child: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+              icon: const Icon(Iconsax.arrow_left, color: Colors.white, size: 28),
               onPressed: () => Navigator.pop(context),
             ),
           ),
@@ -102,7 +103,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 8,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                  icon: const Icon(Iconsax.arrow_left, color: Colors.white, size: 28),
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
@@ -113,7 +114,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
                   child: Container(
                     width: 60, height: 60,
                     decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-                    child: Icon(_controller.value.isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.white, size: 36),
+                    child: Icon(_controller.value.isPlaying ? Iconsax.pause_copy : Iconsax.play_copy, color: Colors.white, size: 36),
                   ),
                 ),
               ),
@@ -169,9 +170,9 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _ActionButton(icon: Icons.download_rounded, label: '下载', onTap: () => _copyLink(context)),
-          _ActionButton(icon: Icons.copy_rounded, label: '复制链接', onTap: () => _copyLink(context)),
-          _ActionButton(icon: Icons.share_rounded, label: '分享', onTap: () => _copyLink(context)),
+          _ActionButton(icon: Iconsax.document_download, label: '下载', onTap: () => _copyLink(context)),
+          _ActionButton(icon: Iconsax.copy, label: '复制链接', onTap: () => _copyLink(context)),
+          _ActionButton(icon: Iconsax.share, label: '分享', onTap: () => _copyLink(context)),
         ],
       ),
     );

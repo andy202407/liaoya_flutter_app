@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/friend_provider.dart';
 import '../../providers/conversation_provider.dart';
@@ -99,7 +100,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: '输入用户名搜索',
-                      prefixIcon: const Icon(Icons.search_rounded),
+                      prefixIcon: const Icon(Iconsax.search_normal),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusXl)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
@@ -129,7 +130,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _searching ? null : _sendRequestByUsername,
-                icon: const Icon(Icons.person_add_rounded, size: 18),
+                icon: const Icon(Iconsax.user_add, size: 18),
                 label: const Text('直接通过用户名添加'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -181,7 +182,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
               padding: const EdgeInsets.all(48),
               child: Column(
                 children: [
-                  Icon(Icons.search_off_rounded, size: 48, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                  Icon(Iconsax.search_normal, size: 48, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                   const SizedBox(height: 12),
                   Text('未找到用户', style: AppTextStyles.body.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
                 ],

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
@@ -467,17 +468,17 @@ class _ChatPageState extends State<ChatPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt),
+              leading: const Icon(Iconsax.camera),
               title: const Text('拍照'),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: const Icon(Iconsax.gallery),
               title: const Text('从相册选择'),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
             ListTile(
-              leading: const Icon(Icons.videocam),
+              leading: const Icon(Iconsax.video),
               title: const Text('选择视频'),
               onTap: () => Navigator.pop(ctx, null), // 特殊标记：选视频
             ),
@@ -726,7 +727,7 @@ class _ChatPageState extends State<ChatPage> {
                   // 喇叭图标
                   Padding(
                     padding: const EdgeInsets.only(top: 1),
-                    child: Icon(Icons.campaign_rounded, size: 20, color: AppColors.primary),
+                    child: Icon(Iconsax.notification_status, size: 20, color: AppColors.primary),
                   ),
                   const SizedBox(width: 6),
                   // 公告文本
@@ -764,7 +765,7 @@ class _ChatPageState extends State<ChatPage> {
                 alignment: Alignment.center,
                 padding: const EdgeInsets.only(bottom: 6, top: 2),
                 child: Icon(
-                  _announcementExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                  _announcementExpanded ? Iconsax.arrow_up_2 : Iconsax.arrow_down_2,
                   size: 18,
                   color: (isDark ? Colors.white : Colors.black).withAlpha(153),
                 ),
@@ -858,7 +859,7 @@ class _ChatPageState extends State<ChatPage> {
             onTap: () => setState(() => _quotedMessage = null),
             child: Padding(
               padding: const EdgeInsets.all(4),
-              child: Icon(Icons.close, size: 18, color: isDark ? Colors.white38 : Colors.black38),
+              child: Icon(Iconsax.close_circle, size: 18, color: isDark ? Colors.white38 : Colors.black38),
             ),
           ),
         ],
@@ -883,7 +884,7 @@ class _ChatPageState extends State<ChatPage> {
                 onTap: _pickAndSendImage,
                 child: Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: Icon(Icons.image_rounded, size: 26, color: isDark ? Colors.white54 : Colors.black45),
+                  child: Icon(Iconsax.gallery, size: 26, color: isDark ? Colors.white54 : Colors.black45),
                 ),
               ),
               // 表情按钮
@@ -895,7 +896,7 @@ class _ChatPageState extends State<ChatPage> {
                 child: Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Icon(
-                    _showEmojiPicker ? Icons.keyboard_rounded : Icons.emoji_emotions_outlined,
+                    _showEmojiPicker ? Iconsax.keyboard : Iconsax.emoji_happy,
                     size: 26,
                     color: isDark ? Colors.white54 : Colors.black45,
                   ),
@@ -938,7 +939,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   child: _isSending
                       ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      : const Icon(Iconsax.send_2_copy, color: Colors.white, size: 20),
                 ),
               ),
             ],
@@ -1061,7 +1062,7 @@ class _MessageBubble extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.campaign_rounded, size: 18, color: AppColors.primary),
+              Icon(Iconsax.notification_status, size: 18, color: AppColors.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -1186,7 +1187,7 @@ class _MessageBubble extends StatelessWidget {
                 color: (isDark ? Colors.white : Colors.black).withAlpha(20),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.reply_rounded, size: 16, color: isDark ? Colors.white60 : Colors.black45),
+              child: Icon(Iconsax.undo, size: 16, color: isDark ? Colors.white60 : Colors.black45),
             ),
           ),
           const SizedBox(width: 4),
@@ -1203,7 +1204,7 @@ class _MessageBubble extends StatelessWidget {
                 color: (isDark ? Colors.white : Colors.black).withAlpha(20),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.copy_rounded, size: 16, color: isDark ? Colors.white60 : Colors.black45),
+              child: Icon(Iconsax.copy, size: 16, color: isDark ? Colors.white60 : Colors.black45),
             ),
           ),
         ],
@@ -1219,7 +1220,7 @@ class _MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.copy_rounded),
+              leading: const Icon(Iconsax.copy),
               title: const Text('复制'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1230,7 +1231,7 @@ class _MessageBubble extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.reply_rounded),
+              leading: const Icon(Iconsax.undo),
               title: const Text('引用'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -1364,13 +1365,13 @@ class _MessageBubble extends StatelessWidget {
     if (type == 'audio') {
       return Row(
         mainAxisSize: MainAxisSize.min,
-        children: [Icon(Icons.mic_rounded, size: 16, color: isMe ? Colors.white70 : Colors.grey), const SizedBox(width: 4), Text('[语音]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)))],
+        children: [Icon(Iconsax.microphone_2, size: 16, color: isMe ? Colors.white70 : Colors.grey), const SizedBox(width: 4), Text('[语音]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)))],
       );
     }
     if (type == 'file') {
       return Row(
         mainAxisSize: MainAxisSize.min,
-        children: [Icon(Icons.attach_file_rounded, size: 16, color: isMe ? Colors.white70 : Colors.grey), const SizedBox(width: 4), Text('[文件]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)))],
+        children: [Icon(Iconsax.document, size: 16, color: isMe ? Colors.white70 : Colors.grey), const SizedBox(width: 4), Text('[文件]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)))],
       );
     }
 
@@ -1422,7 +1423,7 @@ class _MessageBubble extends StatelessWidget {
           errorBuilder: (_, __, ___) => SizedBox(
             width: displayWidth,
             height: displayHeight,
-            child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+            child: const Center(child: Icon(Iconsax.gallery_slash, color: Colors.grey)),
           ),
         ),
       ),
@@ -1456,7 +1457,7 @@ class _MessageBubble extends StatelessWidget {
                     color: Colors.black.withAlpha(120),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 28),
+                  child: const Icon(Iconsax.play_copy, color: Colors.white, size: 28),
                 ),
               ),
             ],
@@ -1555,7 +1556,7 @@ class _MessageBubble extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.redeem, color: Color(0xFFFFD700), size: 28),
+                const Icon(Iconsax.gift, color: Color(0xFFFFD700), size: 28),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(greeting, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),

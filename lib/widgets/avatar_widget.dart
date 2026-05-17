@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../config/api_config.dart';
 import '../theme/app_colors.dart';
@@ -179,7 +180,7 @@ class AvatarWidget extends StatelessWidget {
       ),
       child: Center(
         child: isGroup
-            ? Icon(Icons.group_rounded, color: Colors.white, size: size * 0.45)
+            ? Icon(Iconsax.people_copy, color: Colors.white, size: size * 0.45)
             : Text(
                 name.isNotEmpty ? name[0].toUpperCase() : '?',
                 style: TextStyle(

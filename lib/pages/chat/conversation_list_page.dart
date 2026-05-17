@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/conversation_provider.dart';
@@ -52,7 +53,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
               }
             },
             child: Icon(
-              _wsConnected ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+              _wsConnected ? Iconsax.wifi : Iconsax.wifi_square,
               color: _wsConnected ? AppColors.online : AppColors.error,
               size: 22,
             ),
@@ -62,7 +63,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
         title: const Text('消息'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_alt_1_rounded),
+            icon: const Icon(Iconsax.user_add),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendPage())),
           ),
         ],
@@ -77,7 +78,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.chat_outlined, size: 56, color: AppColors.lightTextTertiary),
+                  Icon(Iconsax.message, size: 56, color: AppColors.lightTextTertiary),
                   const SizedBox(height: 16),
                   Text('暂无会话', style: AppTextStyles.body.copyWith(color: AppColors.lightTextTertiary)),
                 ],
@@ -161,7 +162,7 @@ class _ConversationTile extends StatelessWidget {
       actions.add(
         _SwipeAction(
           color: muted ? const Color(0xFF34C759) : const Color(0xFFFF9500),
-          icon: muted ? Icons.notifications_active : Icons.notifications_off,
+          icon: muted ? Iconsax.notification : Iconsax.notification_bing,
           label: muted ? '取消静音' : '静音',
           onTap: () => context.read<ConversationProvider>().toggleMute(conversation),
         ),
@@ -172,7 +173,7 @@ class _ConversationTile extends StatelessWidget {
     actions.add(
       _SwipeAction(
         color: const Color(0xFF007AFF),
-        icon: pinned ? Icons.push_pin_outlined : Icons.push_pin,
+        icon: pinned ? Iconsax.attach_circle : Iconsax.attach_circle,
         label: pinned ? '取消置顶' : '置顶',
         onTap: () => context.read<ConversationProvider>().togglePin(conversation),
       ),
@@ -183,7 +184,7 @@ class _ConversationTile extends StatelessWidget {
       actions.add(
         _SwipeAction(
           color: const Color(0xFF5856D6),
-          icon: Icons.edit_note_rounded,
+          icon: Iconsax.edit_2,
           label: '备注',
           onTap: () => _showRemarkDialog(context, conversation, friendId),
         ),
@@ -236,7 +237,7 @@ class _ConversationTile extends StatelessWidget {
                               width: 14,
                               height: 14,
                               decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                              child: const Icon(Icons.group_rounded, size: 9, color: Colors.white),
+                              child: const Icon(Iconsax.people_copy, size: 9, color: Colors.white),
                             ),
                           ),
                         ),
@@ -274,7 +275,7 @@ class _ConversationTile extends StatelessWidget {
                                   if (muted)
                                     Padding(
                                       padding: const EdgeInsets.only(left: 4),
-                                      child: Icon(Icons.notifications_off, size: 13, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                                      child: Icon(Iconsax.notification_bing, size: 13, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                                     ),
                                 ],
                               ),

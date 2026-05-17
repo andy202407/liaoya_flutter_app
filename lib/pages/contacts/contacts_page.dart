@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/friend_provider.dart';
 import '../../theme/app_colors.dart';
@@ -35,7 +36,7 @@ class _ContactsPageState extends State<ContactsPage> {
         title: const Text('通讯录'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_rounded),
+            icon: const Icon(Iconsax.user_add),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendPage())),
           ),
         ],
@@ -46,11 +47,11 @@ class _ContactsPageState extends State<ContactsPage> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             // 功能入口
-            _buildEntry(context, '新朋友', Icons.person_add_rounded, AppColors.warning,
+            _buildEntry(context, '新朋友', Iconsax.user_add, AppColors.warning,
               badge: provider.pendingRequestCount,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendRequestsPage())),
             ),
-            _buildEntry(context, '群聊', Icons.group_rounded, AppColors.success,
+            _buildEntry(context, '群聊', Iconsax.people_copy, AppColors.success,
               badge: provider.groups.length,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GroupListPage())),
             ),
@@ -70,7 +71,7 @@ class _ContactsPageState extends State<ContactsPage> {
                   padding: const EdgeInsets.all(48),
                   child: Column(
                     children: [
-                      Icon(Icons.people_outline_rounded, size: 48, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                      Icon(Iconsax.people, size: 48, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                       const SizedBox(height: 12),
                       Text('暂无好友', style: AppTextStyles.body.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
                     ],
@@ -105,7 +106,7 @@ class _ContactsPageState extends State<ContactsPage> {
           children: [
             if (badge > 0) Text('$badge', style: AppTextStyles.caption.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
             const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+            Icon(Iconsax.arrow_right_3, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
           ],
         ),
         onTap: onTap,
