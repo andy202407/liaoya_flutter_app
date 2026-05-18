@@ -10,6 +10,7 @@ import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/avatar_widget.dart';
 import '../contacts/add_friend_page.dart';
+import '../contacts/scan_join_group_page.dart';
 import '../discover/official_account_detail_page.dart';
 
 class ConversationListPage extends StatefulWidget {
@@ -61,9 +62,37 @@ class _ConversationListPageState extends State<ConversationListPage> {
         leadingWidth: 40,
         title: const Text('消息'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_alt_1_rounded),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendPage())),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.add_circle_outline_rounded),
+            onSelected: (value) {
+              if (value == 'add_friend') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendPage()));
+              } else if (value == 'scan_group') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ScanJoinGroupPage()));
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'add_friend',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_add_alt_1_rounded, size: 20),
+                    SizedBox(width: 12),
+                    Text('添加好友'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'scan_group',
+                child: Row(
+                  children: [
+                    Icon(Icons.qr_code_scanner_rounded, size: 20),
+                    SizedBox(width: 12),
+                    Text('扫一扫进群'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
