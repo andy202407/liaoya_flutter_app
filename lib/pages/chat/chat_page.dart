@@ -53,6 +53,12 @@ class _ChatPageState extends State<ChatPage> {
   Timer? _muteCheckTimer; // 禁言到期检查定时器
   DateTime? _mutedUntil; // 禁言到期时间
 
+  // 正在输入状态
+  bool _isTyping = false; // 对方是否正在输入
+  Timer? _typingTimer; // 输入状态超时定时器
+  Timer? _sendTypingTimer; // 发送输入状态节流定时器
+  bool _hasSentTyping = false; // 是否已发送过 typing
+
   int get _type => widget.conversation['type'] as int? ?? 1;
   bool get _isGroup => _type == 2;
   int? get _friendId => widget.conversation['friend']?['id'] as int?;
@@ -115,6 +121,10 @@ class _ChatPageState extends State<ChatPage> {
     WebSocketService.instance.on('group_message_recalled', _onGroupMessageRecalled);
     // 监听系统广播
     WebSocketService.instance.on('system_notify', _onSystemNotify);
+    // 监听已读回执和输入状态（仅私聊）
+    WebSocketService.instance.on('message_read', _onReadReceipt);
+    WebSocketService.instance.on('typing', _onTyping);
+    WebSocketService.instance.on('typing_stop', _onTypingStop);
     // 加载群公告 & 禁言状态
     if (_isGroup) {
       _loadAnnouncement();
@@ -129,6 +139,8 @@ class _ChatPageState extends State<ChatPage> {
     _inputFocusNode.dispose();
     _carouselTimer?.cancel();
     _muteCheckTimer?.cancel();
+    _typingTimer?.cancel();
+    _sendTypingTimer?.cancel();
     // 清除活跃会话标记（在 dispose 前获取 provider 引用）
     _convProvider?.clearActiveConversation();
     WebSocketService.instance.off('message', _onWsMessage);
@@ -142,6 +154,13 @@ class _ChatPageState extends State<ChatPage> {
     WebSocketService.instance.off('message_recalled', _onMessageRecalled);
     WebSocketService.instance.off('group_message_recalled', _onGroupMessageRecalled);
     WebSocketService.instance.off('system_notify', _onSystemNotify);
+    WebSocketService.instance.off('message_read', _onReadReceipt);
+    WebSocketService.instance.off('typing', _onTyping);
+    WebSocketService.instance.off('typing_stop', _onTypingStop);
+    // 发送 typing_stop
+    if (_hasSentTyping && !_isGroup && _friendId != null) {
+      WebSocketService.instance.send({'type': 'typing_stop', 'to': _friendId});
+    }
     super.dispose();
   }
 
@@ -484,6 +503,59 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
+  /// 收到已读回执
+  void _onReadReceipt(Map<String, dynamic> msg) {
+    if (_isGroup) return;
+    final fromId = msg['from'] ?? msg['from_id'];
+    // 对方读了我的消息：from 是对方（读者），to 是我
+    if (fromId != null && '$fromId' == '$_friendId') {
+      setState(() {
+        for (int i = 0; i < _messages.length; i++) {
+          final m = _messages[i];
+          final senderId = m['from'] ?? m['from_id'] ?? m['from_user']?['id'];
+          if ('$senderId' == '$_currentUserId') {
+            _messages[i] = {...m, 'read': true, 'is_read': true};
+          }
+        }
+      });
+    }
+  }
+
+  /// 对方正在输入
+  void _onTyping(Map<String, dynamic> msg) {
+    if (_isGroup) return;
+    final fromId = msg['from'] ?? msg['from_id'];
+    if (fromId != null && '$fromId' == '$_friendId') {
+      setState(() => _isTyping = true);
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _isTyping = false);
+      });
+    }
+  }
+
+  /// 对方停止输入
+  void _onTypingStop(Map<String, dynamic> msg) {
+    if (_isGroup) return;
+    final fromId = msg['from'] ?? msg['from_id'];
+    if (fromId != null && '$fromId' == '$_friendId') {
+      _typingTimer?.cancel();
+      setState(() => _isTyping = false);
+    }
+  }
+
+  /// 发送输入状态（节流：2秒内只发一次）
+  void _sendTypingStatus() {
+    if (_isGroup || _friendId == null || _isInputDisabled) return;
+    if (_hasSentTyping) return;
+    _hasSentTyping = true;
+    WebSocketService.instance.send({'type': 'typing', 'to': _friendId});
+    _sendTypingTimer?.cancel();
+    _sendTypingTimer = Timer(const Duration(seconds: 2), () {
+      _hasSentTyping = false;
+    });
+  }
+
   Future<void> _loadMessages() async {
     setState(() => _isLoading = true);
     try {
@@ -804,7 +876,9 @@ class _ChatPageState extends State<ChatPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(_chatName, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    if (_isGroup && _groupMemberCount > 0)
+                    if (_isTyping && !_isGroup)
+                      Text('正在输入...', style: TextStyle(fontSize: 11, color: Colors.green[600]))
+                    else if (_isGroup && _groupMemberCount > 0)
                       Text('群聊 · $_groupMemberCount人', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
                   ],
                 ),
@@ -864,6 +938,9 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                     ),
           ),
+          // 正在输入指示器
+          if (_isTyping && !_isGroup)
+            _buildTypingIndicator(isDark),
           // 引用消息预览
           if (_quotedMessage != null && !_isSystemNotification)
             _buildQuotedPreview(isDark),
@@ -1055,6 +1132,28 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  Widget _buildTypingIndicator(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(3, (i) => _TypingDot(delay: i * 200)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '对方正在输入',
+            style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black45),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInputBar(bool isDark) {
     final disabled = _isInputDisabled;
     final disabledColor = isDark ? Colors.white24 : Colors.black26;
@@ -1112,6 +1211,7 @@ class _ChatPageState extends State<ChatPage> {
                     maxLines: 4,
                     minLines: 1,
                     textInputAction: TextInputAction.send,
+                    onChanged: (_) => _sendTypingStatus(),
                     onTap: () {
                       if (_showEmojiPicker) setState(() => _showEmojiPicker = false);
                     },
@@ -1352,7 +1452,17 @@ class _MessageBubble extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
                     child: showTime
-                        ? Text(_formatTime(time), style: AppTextStyles.captionSm.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary))
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(_formatTime(time), style: AppTextStyles.captionSm.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
+                              // 已读状态图标（仅私聊自己发的消息）
+                              if (isMe && !isGroup) ...[
+                                const SizedBox(width: 3),
+                                _buildReadStatus(),
+                              ],
+                            ],
+                          )
                         : const SizedBox.shrink(),
                   ),
                 ],
@@ -1937,6 +2047,63 @@ class _MessageBubble extends StatelessWidget {
     } catch (e) {
       return '';
     }
+  }
+
+  /// 已读状态图标
+  Widget _buildReadStatus() {
+    final isRead = message['read'] == true || message['is_read'] == true;
+    if (isRead) {
+      // 已读：绿色双✔
+      return Icon(Icons.done_all, size: 14, color: Colors.green[600]);
+    } else {
+      // 未读：灰色单✔
+      return Icon(Icons.check, size: 14, color: isDark ? Colors.white38 : Colors.grey);
+    }
+  }
+}
+
+/// 输入中动画圆点
+class _TypingDot extends StatefulWidget {
+  final int delay;
+  const _TypingDot({required this.delay});
+
+  @override
+  State<_TypingDot> createState() => _TypingDotState();
+}
+
+class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _animation = Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    Future.delayed(Duration(milliseconds: widget.delay), () {
+      if (mounted) _controller.repeat(reverse: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) => Container(
+        width: 5,
+        height: 5,
+        decoration: BoxDecoration(
+          color: Colors.grey.withValues(alpha: 0.4 + _animation.value * 0.6),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
   }
 }
 
