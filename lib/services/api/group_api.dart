@@ -31,4 +31,10 @@ class GroupApi {
   Future<Response> joinByInviteCode(String code) {
     return _dio.post('/groups/join-by-code', data: {'code': code});
   }
+
+  Future<Response> joinByLink(String token, {String? code}) {
+    final data = <String, dynamic>{'token': token};
+    if (code != null && code.isNotEmpty) data['code'] = code;
+    return _dio.post('/groups/join-by-link', data: data);
+  }
 }
