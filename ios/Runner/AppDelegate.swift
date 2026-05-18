@@ -4,14 +4,27 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate {
 
+  private var deviceToken: String?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
 
-    // 注册自定义 prefs channel
     if let controller = window?.rootViewController as? FlutterViewController {
+      // APNs device token channel
+      let apnsChannel = FlutterMethodChannel(name: "com.qialiao.app/apns", binaryMessenger: controller.binaryMessenger)
+      apnsChannel.setMethodCallHandler { [weak self] (call, result) in
+        switch call.method {
+        case "getDeviceToken":
+          result(self?.deviceToken)
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+
+      // Prefs channel
       let prefsChannel = FlutterMethodChannel(name: "com.qialiao.app/prefs", binaryMessenger: controller.binaryMessenger)
       prefsChannel.setMethodCallHandler { (call, result) in
         let defaults = UserDefaults.standard
@@ -61,5 +74,18 @@ import UIKit
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // 收到 APNs device token
+  override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+    self.deviceToken = token
+    print("[APNs] Device token: \(token)")
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+    print("[APNs] Failed to register: \(error.localizedDescription)")
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
 }
