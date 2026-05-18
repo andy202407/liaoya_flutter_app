@@ -1,4 +1,4 @@
-package com.liaoya.liaoya_app.push
+package com.qialiao.app.push
 
 import android.app.NotificationManager
 import android.content.Context
@@ -7,14 +7,14 @@ import cn.jpush.android.api.CustomMessage
 import cn.jpush.android.api.JPushMessage
 import cn.jpush.android.api.NotificationMessage
 import cn.jpush.android.service.JPushMessageReceiver
-import com.liaoya.liaoya_app.MyApplication
+import com.qialiao.app.MyApplication
 import me.leolin.shortcutbadger.ShortcutBadger
 
 class JPushReceiver : JPushMessageReceiver() {
 
     companion object {
         private const val TAG = "JPushReceiver"
-        private const val PREFS = "liaoya_prefs"
+        private const val PREFS = "qialiao_prefs"
         private const val KEY_BADGE = "badge_count"
 
         fun clearAll(context: Context) {

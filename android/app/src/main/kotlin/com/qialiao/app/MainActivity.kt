@@ -1,4 +1,4 @@
-package com.liaoya.liaoya_app
+package com.qialiao.app
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -12,13 +12,13 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.liaoya.liaoya_app.push.JPushReceiver
+import com.qialiao.app.push.JPushReceiver
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity() {
 
     companion object {
-        private const val TAG = "LiaoyaApp"
+        private const val TAG = "QiaLiao"
         private const val REQ_NOTIFICATION = 1001
     }
 

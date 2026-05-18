@@ -1,4 +1,4 @@
-package com.liaoya.liaoya_app
+package com.qialiao.app
 
 import android.app.Application
 import android.app.NotificationChannel
@@ -14,12 +14,12 @@ import java.net.URL
 class MyApplication : Application() {
 
     companion object {
-        private const val TAG = "LiaoyaApp"
+        private const val TAG = "QiaLiao"
         private const val API_BASE = "https://bb.ql52.com/api/v1"
 
         fun onUserLogin(app: Application?, authToken: String?) {
             app ?: return
-            val prefs = app.getSharedPreferences("liaoya_prefs", Context.MODE_PRIVATE)
+            val prefs = app.getSharedPreferences("qialiao_prefs", Context.MODE_PRIVATE)
             if (!authToken.isNullOrEmpty()) {
                 prefs.edit().putString("auth_token", authToken).apply()
                 Log.d(TAG, "authToken 已保存")
@@ -40,7 +40,7 @@ class MyApplication : Application() {
             app ?: return
             if (registrationId.isNullOrEmpty()) return
             Log.d(TAG, "JPush 注册成功: $registrationId")
-            val prefs = app.getSharedPreferences("liaoya_prefs", Context.MODE_PRIVATE)
+            val prefs = app.getSharedPreferences("qialiao_prefs", Context.MODE_PRIVATE)
             val authToken = prefs.getString("auth_token", "") ?: ""
             if (authToken.isNotEmpty()) {
                 (app as? MyApplication)?.uploadTokenToServer(registrationId)
@@ -51,7 +51,7 @@ class MyApplication : Application() {
 
         fun onUserLogout(app: Application?) {
             app ?: return
-            app.getSharedPreferences("liaoya_prefs", Context.MODE_PRIVATE)
+            app.getSharedPreferences("qialiao_prefs", Context.MODE_PRIVATE)
                 .edit().remove("auth_token").apply()
         }
     }
@@ -80,7 +80,7 @@ class MyApplication : Application() {
     fun uploadTokenToServer(registrationId: String) {
         Thread {
             try {
-                val prefs = getSharedPreferences("liaoya_prefs", Context.MODE_PRIVATE)
+                val prefs = getSharedPreferences("qialiao_prefs", Context.MODE_PRIVATE)
                 val authToken = prefs.getString("auth_token", "") ?: ""
                 if (authToken.isEmpty()) {
                     Log.w(TAG, "用户未登录，跳过上报")
