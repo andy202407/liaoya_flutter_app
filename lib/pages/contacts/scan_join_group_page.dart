@@ -134,7 +134,7 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
           maxLength: 6,
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 24, letterSpacing: 6, fontWeight: FontWeight.bold),
-          decoration: const InputDecoration(hintText: '6位数字邀请码', counterText: ''),
+          decoration: const InputDecoration(hintText: '输入邀请码', counterText: ''),
         ),
         actions: [
           TextButton(
