@@ -46,6 +46,13 @@ class _ChatPageState extends State<ChatPage> {
   bool _loadingMore = false;
   int _groupMemberCount = 0; // 群成员总数
 
+  // 禁言状态
+  bool _isMuted = false; // 当前用户是否被禁言
+  bool _isMuteAll = false; // 群是否全员禁言
+  String? _currentUserRole; // 当前用户在群中的角色 (owner/admin/member)
+  Timer? _muteCheckTimer; // 禁言到期检查定时器
+  DateTime? _mutedUntil; // 禁言到期时间
+
   int get _type => widget.conversation['type'] as int? ?? 1;
   bool get _isGroup => _type == 2;
   int? get _friendId => widget.conversation['friend']?['id'] as int?;
@@ -66,6 +73,23 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   int? _currentUserId; // 缓存当前用户ID
+
+  /// 输入框是否禁用（禁言状态）
+  bool get _isInputDisabled {
+    if (!_isGroup) return false;
+    // 群主和管理员不受禁言限制
+    if (_currentUserRole == 'owner' || _currentUserRole == 'admin') return false;
+    return _isMuted || _isMuteAll;
+  }
+
+  /// 输入框提示文字
+  String get _inputHintText {
+    if (!_isGroup) return '输入消息...';
+    if (_currentUserRole == 'owner' || _currentUserRole == 'admin') return '输入消息...';
+    if (_isMuteAll) return '全员禁言中';
+    if (_isMuted) return '你已被禁言';
+    return '输入消息...';
+  }
 
   @override
   void initState() {
@@ -91,8 +115,11 @@ class _ChatPageState extends State<ChatPage> {
     WebSocketService.instance.on('group_message_recalled', _onGroupMessageRecalled);
     // 监听系统广播
     WebSocketService.instance.on('system_notify', _onSystemNotify);
-    // 加载群公告
-    if (_isGroup) _loadAnnouncement();
+    // 加载群公告 & 禁言状态
+    if (_isGroup) {
+      _loadAnnouncement();
+      _loadGroupMuteStatus();
+    }
   }
 
   @override
@@ -101,6 +128,7 @@ class _ChatPageState extends State<ChatPage> {
     _scrollController.dispose();
     _inputFocusNode.dispose();
     _carouselTimer?.cancel();
+    _muteCheckTimer?.cancel();
     // 清除活跃会话标记（在 dispose 前获取 provider 引用）
     _convProvider?.clearActiveConversation();
     WebSocketService.instance.off('message', _onWsMessage);
@@ -131,6 +159,160 @@ class _ChatPageState extends State<ChatPage> {
     if (user != null && user['id'] != null) {
       _currentUserId = user['id'] as int;
       if (mounted) setState(() {});
+    }
+  }
+
+  /// 加载群禁言状态（从群成员列表和群信息中获取）
+  Future<void> _loadGroupMuteStatus() async {
+    if (_groupId == null) return;
+    try {
+      // 获取群信息（包含 mute_all 字段）
+      final groupResp = await _dio.get('/groups/$_groupId');
+      if (groupResp.data['success'] == true) {
+        final groupData = groupResp.data['data'] as Map<String, dynamic>?;
+        if (groupData != null) {
+          final muteAll = groupData['mute_all'] == true;
+          if (mounted) setState(() => _isMuteAll = muteAll);
+        }
+      }
+
+      // 获取群成员列表（查找当前用户的禁言状态和角色）
+      final membersResp = await _dio.get('/groups/$_groupId/members');
+      if (membersResp.data['success'] == true) {
+        final members = membersResp.data['data'] as List<dynamic>? ?? [];
+        final userId = _currentUserId ?? context.read<AuthProvider>().userId;
+        for (final m in members) {
+          if (m is! Map<String, dynamic>) continue;
+          final memberId = m['user_id'] ?? m['user']?['id'] ?? m['id'];
+          if ('$memberId' == '$userId') {
+            final role = m['role'] as String? ?? 'member';
+            final mutedUntilStr = m['muted_until'] as String?;
+            bool isMuted = false;
+            DateTime? mutedUntil;
+            if (mutedUntilStr != null && mutedUntilStr.isNotEmpty) {
+              mutedUntil = DateTime.tryParse(mutedUntilStr);
+              if (mutedUntil != null && mutedUntil.isAfter(DateTime.now())) {
+                isMuted = true;
+              }
+            }
+            if (mounted) {
+              setState(() {
+                _currentUserRole = role;
+                _isMuted = isMuted;
+                _mutedUntil = mutedUntil;
+              });
+              if (isMuted) _startMuteCountdown();
+            }
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatPage] loadGroupMuteStatus error: $e');
+    }
+  }
+
+  /// 启动禁言到期倒计时
+  void _startMuteCountdown() {
+    _muteCheckTimer?.cancel();
+    if (_mutedUntil == null) return;
+    final remaining = _mutedUntil!.difference(DateTime.now());
+    if (remaining.isNegative) {
+      // 已过期
+      setState(() {
+        _isMuted = false;
+        _mutedUntil = null;
+      });
+      return;
+    }
+    // 定时检查（每秒或每10秒）
+    final interval = remaining.inSeconds < 60 ? 1 : 10;
+    _muteCheckTimer = Timer.periodic(Duration(seconds: interval), (_) {
+      if (_mutedUntil == null || DateTime.now().isAfter(_mutedUntil!)) {
+        _muteCheckTimer?.cancel();
+        if (mounted) {
+          setState(() {
+            _isMuted = false;
+            _mutedUntil = null;
+          });
+        }
+      }
+    });
+  }
+
+  /// 检测群消息中的禁言/解禁系统通知
+  void _checkMuteMessage(Map<String, dynamic> msg) {
+    final msgType = msg['type'] as String?;
+    // 只处理系统类型的消息
+    if (msgType != 'system' && msgType != 'notification') return;
+
+    final content = msg['content'] as String? ?? '';
+    if (content.isEmpty) return;
+
+    final currentNickname = context.read<AuthProvider>().nickname ?? '';
+    if (currentNickname.isEmpty) return;
+
+    // 检测禁言消息：格式 "xxx将yyy禁言 2小时"
+    final mutePatterns = [
+      RegExp(r'(.+?)将(.+?)禁言\s+(.+?)(?:\s|$)'),
+      RegExp(r'(.+?)将(.+?)禁言(.+?)(?:\s|$)'),
+    ];
+    for (final pattern in mutePatterns) {
+      final match = pattern.firstMatch(content);
+      if (match != null) {
+        final mutedUserName = match.group(2)?.trim() ?? '';
+        final durationText = match.group(3)?.trim() ?? '';
+        if (mutedUserName == currentNickname || content.contains(currentNickname) && content.contains('禁言')) {
+          // 解析时长
+          int durationSeconds = 0;
+          if (durationText.contains('永久')) {
+            durationSeconds = 90 * 24 * 60 * 60;
+          } else {
+            final dayMatch = RegExp(r'(\d+)\s*天').firstMatch(durationText);
+            final hourMatch = RegExp(r'(\d+)\s*小时').firstMatch(durationText);
+            final minuteMatch = RegExp(r'(\d+)\s*分钟').firstMatch(durationText);
+            if (dayMatch != null) durationSeconds += int.parse(dayMatch.group(1)!) * 86400;
+            if (hourMatch != null) durationSeconds += int.parse(hourMatch.group(1)!) * 3600;
+            if (minuteMatch != null) durationSeconds += int.parse(minuteMatch.group(1)!) * 60;
+          }
+          if (durationSeconds > 0) {
+            final until = DateTime.now().add(Duration(seconds: durationSeconds));
+            setState(() {
+              _isMuted = true;
+              _mutedUntil = until;
+            });
+            _startMuteCountdown();
+          }
+        }
+        return;
+      }
+    }
+
+    // 检测解除禁言消息：格式 "xxx解除了yyy的禁言"
+    final unmutePatterns = [
+      RegExp(r'(.+?)解除了(.+?)的禁言'),
+      RegExp(r'(.+?)解除(.+?)禁言'),
+    ];
+    for (final pattern in unmutePatterns) {
+      final match = pattern.firstMatch(content);
+      if (match != null) {
+        final unmutedUserName = match.group(2)?.trim() ?? '';
+        if (unmutedUserName == currentNickname || content.contains(currentNickname) && content.contains('解除')) {
+          _muteCheckTimer?.cancel();
+          setState(() {
+            _isMuted = false;
+            _mutedUntil = null;
+          });
+        }
+        return;
+      }
+    }
+
+    // 检测全员禁言/解除全员禁言
+    if (content.contains('开启了全员禁言') || content.contains('全体禁言')) {
+      setState(() => _isMuteAll = true);
+    } else if (content.contains('关闭了全员禁言') || content.contains('解除全员禁言') || content.contains('解除了全员禁言')) {
+      setState(() => _isMuteAll = false);
     }
   }
 
@@ -270,6 +452,8 @@ class _ChatPageState extends State<ChatPage> {
         setState(() => _messages.insert(0, msg));
         _scrollToBottom();
         _markAsRead();
+        // 检测禁言/解禁消息
+        _checkMuteMessage(msg);
       }
     }
   }
@@ -389,6 +573,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendMessage() async {
+    if (_isInputDisabled) return;
     final text = _messageController.text.trim();
     if (text.isEmpty || _isSending) return;
 
@@ -459,6 +644,7 @@ class _ChatPageState extends State<ChatPage> {
   int? _selectedMessageId; // 当前选中的消息ID（显示操作按钮）
 
   Future<void> _pickAndSendImage() async {
+    if (_isInputDisabled) return;
     // 先收起键盘，避免选择器返回后键盘区域残留
     FocusScope.of(context).unfocus();
     
@@ -870,6 +1056,9 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildInputBar(bool isDark) {
+    final disabled = _isInputDisabled;
+    final disabledColor = isDark ? Colors.white24 : Colors.black26;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -883,15 +1072,15 @@ class _ChatPageState extends State<ChatPage> {
             children: [
               // 图片按钮
               GestureDetector(
-                onTap: _pickAndSendImage,
+                onTap: disabled ? null : _pickAndSendImage,
                 child: Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: Icon(Icons.image_rounded, size: 26, color: isDark ? Colors.white54 : Colors.black45),
+                  child: Icon(Icons.image_rounded, size: 26, color: disabled ? disabledColor : (isDark ? Colors.white54 : Colors.black45)),
                 ),
               ),
               // 表情按钮
               GestureDetector(
-                onTap: () {
+                onTap: disabled ? null : () {
                   setState(() => _showEmojiPicker = !_showEmojiPicker);
                   if (_showEmojiPicker) _inputFocusNode.unfocus();
                 },
@@ -900,7 +1089,7 @@ class _ChatPageState extends State<ChatPage> {
                   child: Icon(
                     _showEmojiPicker ? Icons.keyboard_rounded : Icons.emoji_emotions_outlined,
                     size: 26,
-                    color: isDark ? Colors.white54 : Colors.black45,
+                    color: disabled ? disabledColor : (isDark ? Colors.white54 : Colors.black45),
                   ),
                 ),
               ),
@@ -914,10 +1103,11 @@ class _ChatPageState extends State<ChatPage> {
                   child: TextField(
                     controller: _messageController,
                     focusNode: _inputFocusNode,
-                    decoration: const InputDecoration(
-                      hintText: '输入消息...',
+                    enabled: !disabled,
+                    decoration: InputDecoration(
+                      hintText: _inputHintText,
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
                     maxLines: 4,
                     minLines: 1,
@@ -931,24 +1121,24 @@ class _ChatPageState extends State<ChatPage> {
               ),
               const SizedBox(width: AppSpacing.sm),
               GestureDetector(
-                onTap: _sendMessage,
+                onTap: disabled ? null : _sendMessage,
                 child: Container(
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: disabled ? (isDark ? Colors.grey[700] : Colors.grey[300]) : AppColors.primary,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: _isSending
                       ? const Padding(padding: EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      : Icon(Icons.send_rounded, color: disabled ? disabledColor : Colors.white, size: 20),
                 ),
               ),
             ],
           ),
         ),
         // 表情面板
-        if (_showEmojiPicker)
+        if (_showEmojiPicker && !disabled)
           _buildEmojiPanel(isDark),
       ],
     );
