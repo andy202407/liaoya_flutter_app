@@ -11,7 +11,7 @@
 | 5 | 极光后台 iOS 推送配置 | ✅ 已完成 | 新 AppKey: `bdd50c89b81aa79f54fc5ffd` |
 | 6 | Provisioning Profile | ⬜ 待完成 | Mac 上 Xcode 自动管理即可 |
 | 7 | iOS 项目代码配置 | ✅ 已完成 | entitlements / Info.plist / AppDelegate / Bundle ID |
-| 8 | App 图标 + 启动图 | ⬜ 待确认 | 1024x1024 图标 |
+| 8 | App 图标 + 启动图 | ✅ 已完成 | 所有 iOS 尺寸已生成 |
 | 9 | App Store 上架信息 | ⬜ 待完成 | 截图、描述、隐私政策等 |
 
 ---
