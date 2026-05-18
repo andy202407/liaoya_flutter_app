@@ -651,6 +651,14 @@ class _ChatPageState extends State<ChatPage> {
 
     setState(() => _isSending = true);
     _messageController.clear();
+
+    // 发送 typing_stop
+    if (_hasSentTyping && !_isGroup && _friendId != null) {
+      WebSocketService.instance.send({'type': 'typing_stop', 'to': _friendId});
+      _hasSentTyping = false;
+      _sendTypingTimer?.cancel();
+    }
+
     final quoted = _quotedMessage;
     setState(() => _quotedMessage = null);
 
@@ -2051,7 +2059,9 @@ class _MessageBubble extends StatelessWidget {
 
   /// 已读状态图标
   Widget _buildReadStatus() {
-    final isRead = message['read'] == true || message['is_read'] == true;
+    final isRead = message['read'] == true || 
+                   message['is_read'] == true || 
+                   (message['read_at'] != null && message['read_at'].toString().isNotEmpty);
     if (isRead) {
       // 已读：绿色双✔
       return Icon(Icons.done_all, size: 14, color: Colors.green[600]);
@@ -2099,7 +2109,7 @@ class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMi
         width: 5,
         height: 5,
         decoration: BoxDecoration(
-          color: Colors.grey.withValues(alpha: 0.4 + _animation.value * 0.6),
+          color: Colors.grey.withOpacity(0.4 + _animation.value * 0.6),
           shape: BoxShape.circle,
         ),
       ),
