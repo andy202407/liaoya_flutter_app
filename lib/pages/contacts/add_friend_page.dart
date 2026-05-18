@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/friend_provider.dart';
 import '../../providers/conversation_provider.dart';
@@ -6,6 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../widgets/avatar_widget.dart';
+import 'scan_join_group_page.dart';
 
 class AddFriendPage extends StatefulWidget {
   const AddFriendPage({super.key});
@@ -33,7 +34,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
       final results = await context.read<FriendProvider>().searchUsers(keyword);
       setState(() => _results = results);
     } catch (e) {
-      setState(() => _error = '搜索失败');
+      setState(() => _error = 'æœç´¢å¤±è´¥');
     }
     setState(() => _searching = false);
   }
@@ -44,10 +45,10 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
     setState(() => _searching = true);
     try {
-      final success = await context.read<FriendProvider>().sendFriendRequestByUsername(username, '我想添加您为好友');
+      final success = await context.read<FriendProvider>().sendFriendRequestByUsername(username, 'æˆ‘æƒ³æ·»åŠ æ‚¨ä¸ºå¥½å‹');
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('好友申请已发送')));
-        // 延迟刷新会话列表（自动通过时新会话需要出现）
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('å¥½å‹ç”³è¯·å·²å‘é€')));
+        // å»¶è¿Ÿåˆ·æ–°ä¼šè¯åˆ—è¡¨ï¼ˆè‡ªåŠ¨é€šè¿‡æ—¶æ–°ä¼šè¯éœ€è¦å‡ºçŽ°ï¼‰
         Future.delayed(const Duration(milliseconds: 800), () {
           if (mounted) context.read<ConversationProvider>().loadConversations();
         });
@@ -55,7 +56,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
       }
     } catch (e) {
       if (mounted) {
-        final msg = e.toString().contains('response') ? '发送失败' : '用户不存在';
+        final msg = e.toString().contains('response') ? 'å‘é€å¤±è´¥' : 'ç”¨æˆ·ä¸å­˜åœ¨';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
@@ -63,15 +64,15 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Future<void> _sendRequest(int userId) async {
-    final success = await context.read<FriendProvider>().sendFriendRequest(userId, '我想添加您为好友');
+    final success = await context.read<FriendProvider>().sendFriendRequest(userId, 'æˆ‘æƒ³æ·»åŠ æ‚¨ä¸ºå¥½å‹');
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('操作成功')));
-      // 延迟刷新会话列表（自动通过时新会话需要出现）
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('æ“ä½œæˆåŠŸ')));
+      // å»¶è¿Ÿåˆ·æ–°ä¼šè¯åˆ—è¡¨ï¼ˆè‡ªåŠ¨é€šè¿‡æ—¶æ–°ä¼šè¯éœ€è¦å‡ºçŽ°ï¼‰
       Future.delayed(const Duration(milliseconds: 800), () {
         if (mounted) context.read<ConversationProvider>().loadConversations();
       });
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('发送失败')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('å‘é€å¤±è´¥')));
     }
   }
 
@@ -86,10 +87,10 @@ class _AddFriendPageState extends State<AddFriendPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('添加好友')),
+      appBar: AppBar(title: const Text('æ·»åŠ å¥½å‹')),
       body: Column(
         children: [
-          // 搜索框
+          // æœç´¢æ¡†
           Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(
@@ -98,7 +99,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: '输入用户名搜索',
+                      hintText: 'è¾“å…¥ç”¨æˆ·åæœç´¢',
                       prefixIcon: const Icon(Icons.search_rounded),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusXl)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -116,13 +117,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusXl)),
                   ),
-                  child: const Text('搜索'),
+                  child: const Text('æœç´¢'),
                 ),
               ],
             ),
           ),
 
-          // 直接通过用户名添加
+          // ç›´æŽ¥é€šè¿‡ç”¨æˆ·åæ·»åŠ 
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: SizedBox(
@@ -130,7 +131,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
               child: OutlinedButton.icon(
                 onPressed: _searching ? null : _sendRequestByUsername,
                 icon: const Icon(Icons.person_add_rounded, size: 18),
-                label: const Text('直接通过用户名添加'),
+                label: const Text('ç›´æŽ¥é€šè¿‡ç”¨æˆ·åæ·»åŠ '),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusXl)),
@@ -139,9 +140,36 @@ class _AddFriendPageState extends State<AddFriendPage> {
             ),
           ),
 
+
+          // Scan QR to join group
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ScanJoinGroupPage()),
+                  );
+                  if (result != null && mounted) {
+                    Navigator.pop(context);
+                  }
+                },
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                label: const Text('\u626b\u4e00\u626b\u52a0\u5165\u7fa4\u804a'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  foregroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusXl)),
+                ),
+              ),
+            ),
+          ),
+
           const SizedBox(height: AppSpacing.lg),
 
-          // 搜索结果
+          // æœç´¢ç»“æžœ
           if (_searching)
             const Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator())
           else if (_error != null)
@@ -152,7 +180,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 itemCount: _results.length,
                 itemBuilder: (context, index) {
                   final user = _results[index];
-                  final name = user['nickname'] ?? user['username'] ?? '用户';
+                  final name = user['nickname'] ?? user['username'] ?? 'ç”¨æˆ·';
                   final username = user['username'] ?? '';
                   final avatar = user['avatar'] as String?;
                   final userId = user['id'] as int? ?? 0;
@@ -170,7 +198,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                         minimumSize: Size.zero,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: const Text('添加', style: TextStyle(fontSize: 13)),
+                      child: const Text('æ·»åŠ ', style: TextStyle(fontSize: 13)),
                     ),
                   );
                 },
@@ -183,7 +211,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 children: [
                   Icon(Icons.search_off_rounded, size: 48, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                   const SizedBox(height: 12),
-                  Text('未找到用户', style: AppTextStyles.body.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
+                  Text('æœªæ‰¾åˆ°ç”¨æˆ·', style: AppTextStyles.body.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
                 ],
               ),
             ),

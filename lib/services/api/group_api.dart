@@ -1,7 +1,7 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'api_client.dart';
 
-/// 群组相关 API
+/// ç¾¤ç»„ç›¸å…³ API
 class GroupApi {
   final Dio _dio = ApiClient.instance.dio;
 
@@ -27,4 +27,8 @@ class GroupApi {
   Future<Response> joinGroup(int groupId) => _dio.post('/groups/$groupId/join');
 
   Future<Response> leaveGroup(int groupId) => _dio.post('/groups/$groupId/leave');
+
+  Future<Response> joinByInviteCode(String code) {
+    return _dio.post('/groups/join-by-code', data: {'code': code});
+  }
 }
