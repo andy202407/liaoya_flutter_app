@@ -31,13 +31,13 @@
 
     <application
         android:label="洽聊"
-        android:name="com.qialiao.app.MyApplication"
+        android:name="com.ql52.chat.MyApplication"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:theme="@style/LaunchTheme">
 
         <activity
-            android:name="com.qialiao.app.MainActivity"
+            android:name="com.ql52.chat.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""
@@ -79,12 +79,12 @@
 
         <!-- JPush 消息接收 -->
         <receiver
-            android:name="com.qialiao.app.push.JPushReceiver"
+            android:name="com.ql52.chat.push.JPushReceiver"
             android:enabled="true"
             android:exported="false">
             <intent-filter>
                 <action android:name="cn.jpush.android.intent.RECEIVE_MESSAGE" />
-                <category android:name="com.qialiao.app" />
+                <category android:name="com.ql52.chat" />
             </intent-filter>
         </receiver>
 

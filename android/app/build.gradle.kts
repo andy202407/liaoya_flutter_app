@@ -15,7 +15,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.qialiao.app"
+    namespace = "com.ql52.chat"
     compileSdk = 36
     ndkVersion = "27.0.12077973"
 
@@ -38,13 +38,13 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.qialiao.app"
+        applicationId = "com.ql52.chat"
         minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        manifestPlaceholders["JPUSH_PKGNAME"] = "com.qialiao.app"
+        manifestPlaceholders["JPUSH_PKGNAME"] = "com.ql52.chat"
         manifestPlaceholders["JPUSH_APPKEY"]  = "3d906a6c5cea9851c961db1d"
         manifestPlaceholders["JPUSH_CHANNEL"] = "developer-default"
     }

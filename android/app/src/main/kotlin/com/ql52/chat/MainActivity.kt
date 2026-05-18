@@ -1,4 +1,4 @@
-package com.qialiao.app
+package com.ql52.chat
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -12,7 +12,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.qialiao.app.push.JPushReceiver
+import com.ql52.chat.push.JPushReceiver
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity() {

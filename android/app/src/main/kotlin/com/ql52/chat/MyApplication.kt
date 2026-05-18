@@ -1,4 +1,4 @@
-package com.qialiao.app
+package com.ql52.chat
 
 import android.app.Application
 import android.app.NotificationChannel

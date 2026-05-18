@@ -1,4 +1,4 @@
-package com.qialiao.app.push
+package com.ql52.chat.push
 
 import android.app.NotificationManager
 import android.content.Context
@@ -7,7 +7,7 @@ import cn.jpush.android.api.CustomMessage
 import cn.jpush.android.api.JPushMessage
 import cn.jpush.android.api.NotificationMessage
 import cn.jpush.android.service.JPushMessageReceiver
-import com.qialiao.app.MyApplication
+import com.ql52.chat.MyApplication
 import me.leolin.shortcutbadger.ShortcutBadger
 
 class JPushReceiver : JPushMessageReceiver() {
