@@ -16,7 +16,7 @@ class PushService {
     if (kIsWeb) return;
 
     _jpush.setup(
-      appKey: 'bdd50c89b81aa79f54fc5ffd',
+      appKey: '3d906a6c5cea9851c961db1d',
       channel: 'developer-default',
       production: true,
       debug: !kReleaseMode,

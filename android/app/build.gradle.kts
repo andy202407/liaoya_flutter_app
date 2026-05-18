@@ -45,7 +45,7 @@ android {
         versionName = flutter.versionName
 
         manifestPlaceholders["JPUSH_PKGNAME"] = "com.qialiao.app"
-        manifestPlaceholders["JPUSH_APPKEY"]  = "bdd50c89b81aa79f54fc5ffd"
+        manifestPlaceholders["JPUSH_APPKEY"]  = "3d906a6c5cea9851c961db1d"
         manifestPlaceholders["JPUSH_CHANNEL"] = "developer-default"
     }
 
