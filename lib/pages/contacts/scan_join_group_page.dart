@@ -14,10 +14,8 @@ class ScanJoinGroupPage extends StatefulWidget {
 }
 
 class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
-  final _codeController = TextEditingController();
   final _groupApi = GroupApi();
   bool _isProcessing = false;
-  bool _showManualInput = false;
   MobileScannerController? _scannerController;
 
   @override
@@ -31,7 +29,6 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
 
   @override
   void dispose() {
-    _codeController.dispose();
     _scannerController?.dispose();
     super.dispose();
   }
@@ -65,10 +62,12 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
         if (e is DioException && e.response != null) {
           errorMsg = e.response?.data?['message'] ?? '';
         }
-        if (errorMsg.isEmpty) errorMsg = e.toString();
+        if (errorMsg.isEmpty) errorMsg = '加入失败';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMsg)),
         );
+        // 扫码失败后恢复扫描
+        _scannerController?.start();
       }
     }
 
@@ -98,8 +97,6 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
           Navigator.pop(context, groupId);
         }
       } else if (data['require_invite_code'] == true && mounted) {
-        // 需要输入邀请码
-        _scannerController?.stop();
         _showInviteCodeDialog(token);
       }
     } catch (e) {
@@ -108,17 +105,17 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
         if (e is DioException && e.response != null) {
           final respData = e.response?.data;
           errorMsg = respData?['message'] ?? '';
-          // 需要邀请码
           if (respData?['require_invite_code'] == true) {
             _showInviteCodeDialog(token);
             if (mounted) setState(() => _isProcessing = false);
             return;
           }
         }
-        if (errorMsg.isEmpty) errorMsg = e.toString();
+        if (errorMsg.isEmpty) errorMsg = '加入失败';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMsg)),
         );
+        _scannerController?.start();
       }
     }
 
@@ -140,7 +137,13 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
           decoration: const InputDecoration(hintText: '6位数字邀请码', counterText: ''),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _scannerController?.start();
+            },
+            child: const Text('取消'),
+          ),
           TextButton(
             onPressed: () async {
               final code = codeController.text.trim();
@@ -166,6 +169,7 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
                   }
                   if (msg.isEmpty) msg = '加入失败';
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                  _scannerController?.start();
                 }
               }
               if (mounted) setState(() => _isProcessing = false);
@@ -198,7 +202,7 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
     }
 
     // 支持格式: qiaoliao://group/join?code=xxx (邀请码)
-    if (value.startsWith('qiaoliao://group/join')) {
+    if (value.contains('group/join') && value.contains('code=')) {
       final uri = Uri.tryParse(value);
       if (uri != null) {
         final code = uri.queryParameters['code'];
@@ -227,108 +231,46 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('扫一扫加入群聊'),
-        actions: [
-          TextButton(
-            onPressed: () => setState(() => _showManualInput = !_showManualInput),
-            child: Text(
-              _showManualInput ? '扫码' : '输入口令',
-              style: const TextStyle(color: AppColors.primary),
+        title: const Text('扫一扫'),
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _scannerController!,
+            onDetect: _onDetect,
+          ),
+          // 扫描框
+          Center(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.primary, width: 2),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (!_showManualInput)
-            Expanded(
-              child: Stack(
-                children: [
-                  MobileScanner(
-                    controller: _scannerController!,
-                    onDetect: _onDetect,
-                  ),
-                  Center(
-                    child: Container(
-                      width: 250,
-                      height: 250,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.primary, width: 2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 80,
-                    left: 0,
-                    right: 0,
-                    child: Text(
-                      '将二维码放入框内自动扫描',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ],
+          // 提示文字
+          Positioned(
+            bottom: 120,
+            left: 0,
+            right: 0,
+            child: Text(
+              '将二维码放入框内自动扫描',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 14,
               ),
             ),
-
-          if (_showManualInput)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.dialpad_rounded, size: 48, color: AppColors.primary),
-                    const SizedBox(height: 16),
-                    const Text(
-                      '输入群聆6位数字口令',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: _codeController,
-                      keyboardType: TextInputType.number,
-                      maxLength: 6,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 28, letterSpacing: 8, fontWeight: FontWeight.bold),
-                      decoration: InputDecoration(
-                        hintText: '000000',
-                        counterText: '',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _isProcessing
-                            ? null
-                            : () => _joinByCode(_codeController.text.trim()),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: _isProcessing
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('加入群聊', style: TextStyle(fontSize: 16)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
+          ),
+          // 加载指示器
           if (_isProcessing)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: LinearProgressIndicator(),
+            Container(
+              color: Colors.black45,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
         ],
       ),
