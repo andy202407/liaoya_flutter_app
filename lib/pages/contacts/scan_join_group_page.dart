@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../services/api/group_api.dart';
@@ -61,7 +62,7 @@ class _ScanJoinGroupPageState extends State<ScanJoinGroupPage> {
     } catch (e) {
       if (mounted) {
         String errorMsg = '';
-        if (e is dynamic && e.response != null) {
+        if (e is DioException && e.response != null) {
           errorMsg = e.response?.data?['message'] ?? '';
         }
         if (errorMsg.isEmpty) errorMsg = e.toString();
