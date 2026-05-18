@@ -84,14 +84,32 @@ class _ConversationListPageState extends State<ConversationListPage> {
               ),
             );
           }
-          return RefreshIndicator(
-            onRefresh: () => provider.loadConversations(),
-            child: ListView.builder(
-              itemCount: provider.conversations.length,
-              itemBuilder: (context, index) {
-                final conv = provider.conversations[index];
-                return _ConversationTile(conversation: conv);
-              },
+          return NotificationListener<ScrollNotification>(
+            onNotification: (scrollInfo) {
+              if (scrollInfo is ScrollEndNotification &&
+                  scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 200 &&
+                  provider.hasMore &&
+                  !provider.isLoading) {
+                provider.loadConversations(loadMore: true);
+              }
+              return false;
+            },
+            child: RefreshIndicator(
+              onRefresh: () => provider.loadConversations(),
+              child: ListView.builder(
+                itemCount: provider.conversations.length + (provider.hasMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index >= provider.conversations.length) {
+                    // 底部加载指示器
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                    );
+                  }
+                  final conv = provider.conversations[index];
+                  return _ConversationTile(conversation: conv);
+                },
+              ),
             ),
           );
         },

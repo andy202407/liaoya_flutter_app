@@ -79,7 +79,8 @@ class ConversationProvider extends ChangeNotifier {
     try {
       int? beforeId;
       if (loadMore && _conversations.isNotEmpty) {
-        beforeId = _conversations.last['id'] as int?;
+        // 使用 offset 模式：传已加载的数量作为偏移量
+        beforeId = _conversations.length;
       }
 
       final result = await _repo.getConversations(limit: 20, beforeId: beforeId);
