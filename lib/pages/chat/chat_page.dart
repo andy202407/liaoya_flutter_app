@@ -1459,19 +1459,18 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
-                    child: showTime
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_formatTime(time), style: AppTextStyles.captionSm.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
-                              // 已读状态图标（仅私聊自己发的消息）
-                              if (isMe && !isGroup) ...[
-                                const SizedBox(width: 3),
-                                _buildReadStatus(),
-                              ],
-                            ],
-                          )
-                        : const SizedBox.shrink(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showTime)
+                          Text(_formatTime(time), style: AppTextStyles.captionSm.copyWith(color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary)),
+                        // 已读状态图标（仅私聊自己发的消息，始终显示）
+                        if (isMe && !isGroup) ...[
+                          if (showTime) const SizedBox(width: 3),
+                          _buildReadStatus(),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
