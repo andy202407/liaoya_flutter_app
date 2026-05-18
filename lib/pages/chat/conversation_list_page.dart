@@ -336,9 +336,21 @@ class _ConversationTile extends StatelessWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppTextStyles.convMsg.copyWith(
-                                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                              )),
+                              child: Builder(
+                                builder: (context) {
+                                  // 检查是否正在输入（仅私聊）
+                                  final isTyping = !isGroup && !isOA && !isSystemNotification && friendId > 0 &&
+                                      context.watch<ConversationProvider>().isUserTyping(friendId);
+                                  return Text(
+                                    isTyping ? '正在输入...' : lastMessage,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.convMsg.copyWith(
+                                      color: isTyping ? Colors.green[600] : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                             if (unread > 0 && !muted)
                               Container(

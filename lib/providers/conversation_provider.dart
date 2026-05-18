@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../repositories/conversation_repository.dart';
 import '../services/api/api_client.dart';
@@ -15,9 +16,14 @@ class ConversationProvider extends ChangeNotifier {
   int? _activeConversationId; // 当前正在查看的会话ID（不恢复其未读数）
   int? _activeFriendId; // 当前正在查看的好友ID
   int? _activeGroupId; // 当前正在查看的群ID
+  final Map<int, bool> _typingUsers = {}; // 正在输入的用户 {userId: true}
+  final Map<int, Timer> _typingTimers = {}; // 输入状态超时定时器
 
   int? get activeFriendId => _activeFriendId;
   int? get activeGroupId => _activeGroupId;
+
+  /// 检查某个用户是否正在输入
+  bool isUserTyping(int userId) => _typingUsers[userId] == true;
 
   List<Map<String, dynamic>> get conversations => _conversations;
   List<int> get onlineUsers => _onlineUsers;
@@ -63,6 +69,9 @@ class ConversationProvider extends ChangeNotifier {
     // 监听消息撤回（更新会话列表预览，不全量刷新避免会话消失）
     WebSocketService.instance.on('message_recalled', _onMessageRecalledConv);
     WebSocketService.instance.on('group_message_recalled', _onMessageRecalledConv);
+    // 监听输入状态
+    WebSocketService.instance.on('typing', _onTypingStatus);
+    WebSocketService.instance.on('typing_stop', _onTypingStopStatus);
 
     loadConversations();
   }
@@ -216,6 +225,32 @@ class ConversationProvider extends ChangeNotifier {
       if (_onlineUsers.remove(fromId)) {
         notifyListeners();
       }
+    }
+  }
+
+  /// 处理输入状态
+  void _onTypingStatus(Map<String, dynamic> msg) {
+    final fromId = msg['from'] as int? ?? (msg['from_id'] as int?);
+    if (fromId == null) return;
+    _typingUsers[fromId] = true;
+    notifyListeners();
+    // 3秒后自动清除
+    _typingTimers[fromId]?.cancel();
+    _typingTimers[fromId] = Timer(const Duration(seconds: 3), () {
+      _typingUsers.remove(fromId);
+      _typingTimers.remove(fromId);
+      notifyListeners();
+    });
+  }
+
+  /// 处理停止输入
+  void _onTypingStopStatus(Map<String, dynamic> msg) {
+    final fromId = msg['from'] as int? ?? (msg['from_id'] as int?);
+    if (fromId == null) return;
+    _typingTimers[fromId]?.cancel();
+    _typingTimers.remove(fromId);
+    if (_typingUsers.remove(fromId) != null) {
+      notifyListeners();
     }
   }
 
@@ -456,6 +491,12 @@ class ConversationProvider extends ChangeNotifier {
     WebSocketService.instance.off('official_account_article', _onNewMessage);
     WebSocketService.instance.off('message_recalled', _onMessageRecalledConv);
     WebSocketService.instance.off('group_message_recalled', _onMessageRecalledConv);
+    WebSocketService.instance.off('typing', _onTypingStatus);
+    WebSocketService.instance.off('typing_stop', _onTypingStopStatus);
+    for (final timer in _typingTimers.values) {
+      timer.cancel();
+    }
+    _typingTimers.clear();
     super.dispose();
   }
 }
