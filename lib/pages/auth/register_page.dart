@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
+import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -141,6 +142,13 @@ class _RegisterPageState extends State<RegisterPage> {
     );
 
     if (success && mounted) {
+      // 注册成功后自动保存账号密码，下次登录自动填充
+      final storage = await StorageService.getInstance();
+      await storage.saveCredentials(
+        _usernameController.text.trim(),
+        _passwordController.text.trim(),
+      );
+
       if (auth.isAuthenticated) {
         try { context.read<ConversationProvider>().reset(); } catch (_) {}
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
