@@ -824,7 +824,34 @@ class _ChatPageState extends State<ChatPage> {
           'image_height': imageHeight,
         };
         if (thumbnail.isNotEmpty) wsData['thumbnail'] = thumbnail;
-        WebSocketService.instance.send(wsData);
+
+        // 先通过 WS 发送，失败时走 HTTP 降级
+        bool wsSent = false;
+        try {
+          if (WebSocketService.instance.isConnected) {
+            WebSocketService.instance.send(wsData);
+            wsSent = true;
+          }
+        } catch (_) {}
+
+        if (!wsSent) {
+          // WS 不可用，走 HTTP 降级
+          try {
+            final httpData = <String, dynamic>{
+              'to_id': _friendId,
+              'type': type,
+              'content': '',
+              'file_url': fileUrl,
+              'image_width': imageWidth,
+              'image_height': imageHeight,
+            };
+            if (thumbnail.isNotEmpty) httpData['thumbnail'] = thumbnail;
+            await _dio.post('/messages', data: httpData);
+          } catch (e) {
+            debugPrint('[Chat] HTTP fallback failed: $e');
+          }
+        }
+
         setState(() => _messages.insert(0, {
           'id': DateTime.now().millisecondsSinceEpoch,
           'from_id': _currentUserId,

@@ -14,16 +14,21 @@ class ApiClient {
   bool _isHandling401 = false;
 
   ApiClient._() {
+    final headers = <String, dynamic>{
+      'Content-Type': 'application/json',
+      'X-App-Client': AppSecrets.appClientId,
+      'X-App-Secret': AppSecrets.appSecret,
+    };
+    // Web 端不设置 User-Agent（浏览器不允许 JS 修改此 header）
+    if (!kIsWeb) {
+      headers['User-Agent'] = '${AppSecrets.appClientId}/1.0';
+    }
+
     dio = Dio(BaseOptions(
       baseUrl: ApiConfig.apiUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': '${AppSecrets.appClientId}/1.0',
-        'X-App-Client': AppSecrets.appClientId,
-        'X-App-Secret': AppSecrets.appSecret,
-      },
+      headers: headers,
     ));
 
     dio.interceptors.add(InterceptorsWrapper(

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../config/api_config.dart';
 import 'storage_service.dart';
 
@@ -8,16 +9,20 @@ class ApiService {
   StorageService? _storage;
 
   ApiService._() {
+    final headers = <String, dynamic>{
+      'Content-Type': 'application/json',
+      'X-App-Client': 'LiaoyaFlutterApp',
+      'X-App-Secret': 'ly_f8k2m9x4p7q1w3',
+    };
+    if (!kIsWeb) {
+      headers['User-Agent'] = 'LiaoyaFlutterApp/1.0';
+    }
+
     _dio = Dio(BaseOptions(
       baseUrl: ApiConfig.apiUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'LiaoyaFlutterApp/1.0',
-        'X-App-Client': 'LiaoyaFlutterApp',
-        'X-App-Secret': 'ly_f8k2m9x4p7q1w3',
-      },
+      headers: headers,
     ));
 
     _dio.interceptors.add(InterceptorsWrapper(
