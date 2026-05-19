@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -42,7 +43,7 @@ class ImagePreviewPage extends StatelessWidget {
             bottom: 0,
             left: 0,
             right: 0,
-            child: _BottomBar(url: url),
+            child: _MediaBottomBar(url: url, isVideo: false),
           ),
         ],
       ),
@@ -75,10 +76,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
   Future<void> _initializePlayer() async {
     _controller = VideoPlayerController.networkUrl(
       Uri.parse(widget.url),
-      httpHeaders: const {
-        'Accept': '*/*',
-        'Connection': 'keep-alive',
-      },
+      httpHeaders: const {'Accept': '*/*', 'Connection': 'keep-alive'},
     );
 
     try {
@@ -88,7 +86,6 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
         _controller.play();
       }
     } catch (e) {
-      debugPrint('[VideoPreview] Initialize error: $e');
       if (mounted) {
         setState(() {
           _hasError = true;
@@ -99,7 +96,6 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
 
     _controller.addListener(() {
       if (mounted) {
-        // 检测播放错误
         if (_controller.value.hasError && !_hasError) {
           setState(() {
             _hasError = true;
@@ -141,54 +137,29 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
                         const SizedBox(height: 12),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            _errorMessage,
-                            style: const TextStyle(color: Colors.white70, fontSize: 14),
-                            textAlign: TextAlign.center,
-                          ),
+                          child: Text(_errorMessage, style: const TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
                         ),
                         const SizedBox(height: 16),
                         TextButton.icon(
                           onPressed: () {
-                            setState(() {
-                              _hasError = false;
-                              _initialized = false;
-                            });
+                            setState(() { _hasError = false; _initialized = false; });
                             _controller.dispose();
                             _initializePlayer();
                           },
                           icon: const Icon(Icons.refresh, color: Colors.white70),
                           label: const Text('重试', style: TextStyle(color: Colors.white70)),
                         ),
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: () async {
-                            // 尝试用系统播放器打开
-                            final uri = Uri.parse(widget.url);
-                            if (await canLaunchUrl(uri)) {
-                              await launchUrl(uri, mode: LaunchMode.externalApplication);
-                            }
-                          },
-                          icon: const Icon(Icons.open_in_new, color: Colors.white70),
-                          label: const Text('用系统播放器打开', style: TextStyle(color: Colors.white70)),
-                        ),
                       ],
                     )
                   : _initialized
-                      ? AspectRatio(
-                          aspectRatio: _controller.value.aspectRatio,
-                          child: VideoPlayer(_controller),
-                        )
+                      ? AspectRatio(aspectRatio: _controller.value.aspectRatio, child: VideoPlayer(_controller))
                       : const CircularProgressIndicator(color: Colors.white),
             ),
             if (_showControls)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 8,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                  onPressed: () => Navigator.pop(context),
-                ),
+                child: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28), onPressed: () => Navigator.pop(context)),
               ),
             if (_showControls && _initialized && !_hasError)
               Center(
@@ -227,7 +198,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
                           ],
                         ),
                       ),
-                    _BottomBar(url: widget.url),
+                    _MediaBottomBar(url: widget.url, isVideo: true),
                   ],
                 ),
               ),
@@ -238,10 +209,18 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
   }
 }
 
-/// 底部操作栏
-class _BottomBar extends StatelessWidget {
+/// 底部操作栏 - 下载到相册 + 分享文件（不暴露URL）
+class _MediaBottomBar extends StatefulWidget {
   final String url;
-  const _BottomBar({required this.url});
+  final bool isVideo;
+  const _MediaBottomBar({required this.url, required this.isVideo});
+
+  @override
+  State<_MediaBottomBar> createState() => _MediaBottomBarState();
+}
+
+class _MediaBottomBarState extends State<_MediaBottomBar> {
+  bool _downloading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -253,64 +232,75 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _ActionButton(icon: Icons.download_rounded, label: '下载', onTap: () => _download(context)),
-          _ActionButton(icon: Icons.copy_rounded, label: '复制链接', onTap: () => _copyLink(context)),
-          _ActionButton(icon: Icons.share_rounded, label: '分享', onTap: () => _share(context)),
+          _ActionButton(
+            icon: Icons.download_rounded,
+            label: '保存',
+            loading: _downloading,
+            onTap: _downloading ? null : () => _saveToGallery(context),
+          ),
+          _ActionButton(
+            icon: Icons.share_rounded,
+            label: '分享',
+            onTap: () => _shareFile(context),
+          ),
         ],
       ),
     );
   }
 
-  void _download(BuildContext context) async {
+  /// 下载并保存到相册
+  Future<void> _saveToGallery(BuildContext context) async {
+    setState(() => _downloading = true);
     try {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在保存...'), duration: Duration(seconds: 1)));
-      // 下载文件到临时目录
-      final dio = Dio();
-      final tempDir = await getTemporaryDirectory();
-      final ext = url.contains('.mp4') || url.contains('.mov') ? '.mp4' : '.jpg';
-      final filePath = '${tempDir.path}/download_${DateTime.now().millisecondsSinceEpoch}$ext';
-      await dio.download(url, filePath);
-      // 保存到相册
-      if (ext == '.mp4') {
+      final filePath = await _downloadToTemp();
+      if (widget.isVideo) {
         await Gal.putVideo(filePath);
       } else {
         await Gal.putImage(filePath);
       }
-      // 清理临时文件
       try { File(filePath).deleteSync(); } catch (_) {}
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存到相册'), duration: Duration(seconds: 2)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存到相册')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: $e'), duration: const Duration(seconds: 2)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('保存失败，请检查权限')));
       }
     }
+    if (mounted) setState(() => _downloading = false);
   }
 
-  void _copyLink(BuildContext context) async {
-    // 尝试用浏览器打开，打不开才复制链接
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      Clipboard.setData(ClipboardData(text: url));
+  /// 分享文件（下载后分享本地文件，不暴露URL）
+  Future<void> _shareFile(BuildContext context) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('准备分享...'), duration: Duration(seconds: 1)));
+      final filePath = await _downloadToTemp();
+      final xFile = XFile(filePath);
+      await Share.shareXFiles([xFile], text: widget.isVideo ? '视频' : '图片');
+    } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('链接已复制'), duration: Duration(seconds: 1)));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('分享失败')));
       }
     }
   }
 
-  void _share(BuildContext context) {
-    Share.share(url);
+  /// 下载文件到临时目录
+  Future<String> _downloadToTemp() async {
+    final dio = Dio();
+    final tempDir = await getTemporaryDirectory();
+    final ext = widget.isVideo ? '.mp4' : '.jpg';
+    final filePath = '${tempDir.path}/share_${DateTime.now().millisecondsSinceEpoch}$ext';
+    await dio.download(widget.url, filePath);
+    return filePath;
   }
 }
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
-  const _ActionButton({required this.icon, required this.label, required this.onTap});
+  final VoidCallback? onTap;
+  final bool loading;
+  const _ActionButton({required this.icon, required this.label, this.onTap, this.loading = false});
 
   @override
   Widget build(BuildContext context) {
@@ -319,7 +309,9 @@ class _ActionButton extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 24),
+          loading
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : Icon(icon, color: Colors.white, size: 24),
           const SizedBox(height: 4),
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
         ],

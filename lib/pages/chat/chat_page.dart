@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart' show getTemporaryDirectory;
 import '../../config/api_config.dart';
 import '../../services/api/api_client.dart';
 import 'media_preview_page.dart';
@@ -1689,9 +1691,56 @@ class _MessageBubble extends StatelessWidget {
       );
     }
     if (type == 'file') {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(Icons.attach_file_rounded, size: 16, color: isMe ? Colors.white70 : Colors.grey), const SizedBox(width: 4), Text('[文件]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)))],
+      final fileUrl = message['file_url'] as String? ?? '';
+      final fileName = (message['content'] as String?)?.isNotEmpty == true
+          ? message['content'] as String
+          : '文件';
+      return Builder(
+        builder: (ctx) => GestureDetector(
+          onTap: () {
+            if (fileUrl.isNotEmpty) {
+              String fullUrl = fileUrl;
+              if (!fullUrl.startsWith('http')) {
+                fullUrl = '${ApiConfig.baseUrl}$fullUrl';
+              }
+              _downloadFile(ctx, fullUrl, fileName);
+            }
+          },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: (isMe ? Colors.white : AppColors.primary).withAlpha(20),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.insert_drive_file_rounded, size: 28, color: isMe ? Colors.white70 : AppColors.primary),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      style: TextStyle(fontSize: 14, color: isMe ? Colors.white : (isDark ? AppColors.darkText : AppColors.lightText)),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '点击下载',
+                      style: TextStyle(fontSize: 11, color: isMe ? Colors.white54 : AppColors.systemGray),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.download_rounded, size: 20, color: isMe ? Colors.white54 : AppColors.primary),
+            ],
+          ),
+        ),
+      ),
       );
     }
 
@@ -2068,6 +2117,30 @@ class _MessageBubble extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VideoPreviewPage(url: url),
     ));
+  }
+
+  /// 下载文件到本地
+  static void _downloadFile(BuildContext context, String url, String fileName) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在下载...'), duration: Duration(seconds: 1)));
+      final dio = Dio();
+      final tempDir = await getTemporaryDirectory();
+      // 保留原始文件扩展名
+      String ext = '';
+      final dotIdx = fileName.lastIndexOf('.');
+      if (dotIdx > 0) ext = fileName.substring(dotIdx);
+      if (ext.isEmpty) ext = '.dat';
+      final filePath = '${tempDir.path}/download_${DateTime.now().millisecondsSinceEpoch}$ext';
+      await dio.download(url, filePath);
+
+      // 分享文件（让用户选择保存位置或打开方式）
+      final xFile = XFile(filePath, name: fileName);
+      await Share.shareXFiles([xFile], text: fileName);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下载失败')));
+      }
+    }
   }
 
   String _formatTime(String timeStr) {

@@ -1,6 +1,6 @@
 class AppConstants {
   static const String appName = '洽聊';
-  static const String appVersion = '2.0.1';
+  // static const String appVersion = '2.0.1'; // 仅供参考，实际版本以 pubspec.yaml 的 version 字段为准
 
   // Storage keys
   static const String tokenKey = 'auth_token';
