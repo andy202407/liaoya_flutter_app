@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import '../../config/api_config.dart';
 import '../../services/api/api_client.dart';
@@ -790,17 +791,20 @@ class _ChatPageState extends State<ChatPage> {
       final fileUrl = fileData['url'] as String? ?? '';
       final imageWidth = fileData['width'] as int? ?? 0;
       final imageHeight = fileData['height'] as int? ?? 0;
+      final thumbnail = fileData['thumbnail'] as String? ?? '';
 
       // 2. 发送消息
       if (_isGroup) {
+        final msgData = <String, dynamic>{
+          'content': '',
+          'type': type,
+          'file_url': fileUrl,
+          'image_width': imageWidth,
+          'image_height': imageHeight,
+        };
+        if (thumbnail.isNotEmpty) msgData['thumbnail'] = thumbnail;
         final response = await _dio.post('/groups/$_groupId/messages',
-          data: FormData.fromMap({
-            'content': '',
-            'type': type,
-            'file_url': fileUrl,
-            'image_width': imageWidth,
-            'image_height': imageHeight,
-          }),
+          data: FormData.fromMap(msgData),
         );
         if (response.data['success'] == true) {
           final msg = response.data['data'] as Map<String, dynamic>;
@@ -808,7 +812,7 @@ class _ChatPageState extends State<ChatPage> {
           _scrollToBottom();
         }
       } else {
-        WebSocketService.instance.send({
+        final wsData = <String, dynamic>{
           'type': type,
           'to': _friendId,
           'content': '',
@@ -816,7 +820,9 @@ class _ChatPageState extends State<ChatPage> {
           'file_url': fileUrl,
           'image_width': imageWidth,
           'image_height': imageHeight,
-        });
+        };
+        if (thumbnail.isNotEmpty) wsData['thumbnail'] = thumbnail;
+        WebSocketService.instance.send(wsData);
         setState(() => _messages.insert(0, {
           'id': DateTime.now().millisecondsSinceEpoch,
           'from_id': _currentUserId,
@@ -825,6 +831,7 @@ class _ChatPageState extends State<ChatPage> {
           'type': type,
           'message_type': type,
           'file_url': fileUrl,
+          'thumbnail': thumbnail,
           'image_width': imageWidth,
           'image_height': imageHeight,
           'created_at': DateTime.now().toIso8601String(),
@@ -914,6 +921,8 @@ class _ChatPageState extends State<ChatPage> {
                           shrinkWrap: true,
                           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
                           itemCount: _messages.length,
+                          addAutomaticKeepAlives: false,
+                          addRepaintBoundaries: true,
                           itemBuilder: (context, index) {
                           final msg = _messages[index];
                           final fromId = msg['from_id'] ?? msg['from_user']?['id'] ?? msg['from'];
@@ -930,17 +939,19 @@ class _ChatPageState extends State<ChatPage> {
                               showTime = curTime.difference(nextTime).inMinutes.abs() >= 5;
                             }
                           }
-                          return _MessageBubble(
-                            message: msg,
-                            isMe: isMe,
-                            isGroup: _isGroup,
-                            isDark: isDark,
-                            showTime: showTime,
-                            isSelected: _selectedMessageId == msg['id'],
-                            onQuote: (m) => setState(() => _quotedMessage = m),
-                            onTap: () => setState(() {
-                              _selectedMessageId = _selectedMessageId == msg['id'] ? null : msg['id'] as int?;
-                            }),
+                          return RepaintBoundary(
+                            child: _MessageBubble(
+                              message: msg,
+                              isMe: isMe,
+                              isGroup: _isGroup,
+                              isDark: isDark,
+                              showTime: showTime,
+                              isSelected: _selectedMessageId == msg['id'],
+                              onQuote: (m) => setState(() => _quotedMessage = m),
+                              onTap: () => setState(() {
+                                _selectedMessageId = _selectedMessageId == msg['id'] ? null : msg['id'] as int?;
+                              }),
+                            ),
                           );
                         },
                       ),
@@ -1716,20 +1727,18 @@ class _MessageBubble extends StatelessWidget {
       onTap: () => _showFullImage(context, fullUrl),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          fullUrl,
+        child: CachedNetworkImage(
+          imageUrl: fullUrl,
           width: displayWidth,
           height: displayHeight,
           fit: BoxFit.cover,
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return SizedBox(
-              width: displayWidth,
-              height: displayHeight,
-              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          },
-          errorBuilder: (_, __, ___) => SizedBox(
+          memCacheWidth: (displayWidth * 2).toInt(),
+          placeholder: (_, __) => SizedBox(
+            width: displayWidth,
+            height: displayHeight,
+            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+          errorWidget: (_, __, ___) => SizedBox(
             width: displayWidth,
             height: displayHeight,
             child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
@@ -1745,6 +1754,13 @@ class _MessageBubble extends StatelessWidget {
       fullUrl = '${ApiConfig.baseUrl}$fullUrl';
     }
 
+    // 优先使用后端生成的缩略图
+    final thumbnail = message['thumbnail'] as String? ?? '';
+    String? thumbUrl;
+    if (thumbnail.isNotEmpty) {
+      thumbUrl = thumbnail.startsWith('http') ? thumbnail : '${ApiConfig.baseUrl}$thumbnail';
+    }
+
     return GestureDetector(
       onTap: () => _playVideo(context, fullUrl),
       child: ClipRRect(
@@ -1755,8 +1771,16 @@ class _MessageBubble extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 用视频第一帧作为封面
-              _VideoThumbnail(url: fullUrl),
+              // 封面：优先用缩略图，没有则用视频第一帧
+              if (thumbUrl != null)
+                CachedNetworkImage(
+                  imageUrl: thumbUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(color: Colors.black12),
+                  errorWidget: (_, __, ___) => _VideoThumbnail(url: fullUrl),
+                )
+              else
+                _VideoThumbnail(url: fullUrl),
               // 播放按钮
               Center(
                 child: Container(
@@ -2116,7 +2140,7 @@ class _TypingDotState extends State<_TypingDot> with SingleTickerProviderStateMi
   }
 }
 
-/// 视频缩略图：加载视频第一帧作为封面
+/// 视频缩略图：尝试加载视频第一帧作为封面，失败则显示占位图标
 class _VideoThumbnail extends StatefulWidget {
   final String url;
   const _VideoThumbnail({required this.url});
@@ -2128,15 +2152,45 @@ class _VideoThumbnail extends StatefulWidget {
 class _VideoThumbnailState extends State<_VideoThumbnail> {
   VideoPlayerController? _controller;
   bool _ready = false;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..setVolume(0)
-      ..initialize().then((_) {
-        if (mounted) setState(() => _ready = true);
-      }).catchError((_) {});
+    _loadThumbnail();
+  }
+
+  Future<void> _loadThumbnail() async {
+    try {
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+        httpHeaders: const {'Accept': '*/*'},
+      );
+      _controller!.setVolume(0);
+
+      // 设置超时：3秒内初始化不了就放弃
+      await _controller!.initialize().timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          throw Exception('timeout');
+        },
+      );
+
+      if (mounted && _controller!.value.isInitialized) {
+        setState(() => _ready = true);
+      } else {
+        _dispose();
+        if (mounted) setState(() => _failed = true);
+      }
+    } catch (_) {
+      _dispose();
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  void _dispose() {
+    _controller?.dispose();
+    _controller = null;
   }
 
   @override
@@ -2147,6 +2201,8 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (_ready && _controller != null && _controller!.value.isInitialized) {
       return FittedBox(
         fit: BoxFit.cover,
@@ -2157,6 +2213,19 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
         ),
       );
     }
-    return Container(color: Colors.black12);
+
+    // 加载中或失败：显示占位
+    return Container(
+      color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7),
+      child: Center(
+        child: _failed
+            ? Icon(Icons.videocam_rounded, size: 32, color: isDark ? Colors.white30 : Colors.black26)
+            : const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+              ),
+      ),
+    );
   }
 }

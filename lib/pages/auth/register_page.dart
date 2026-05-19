@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_text_styles.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -18,11 +18,14 @@ class _RegisterPageState extends State<RegisterPage> {
   final _nicknameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _usernameFocus = FocusNode();
+  final _nicknameFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _agreed = false;
 
-  // 实时校验错误
   String? _usernameError;
   String? _nicknameError;
   String? _passwordError;
@@ -35,6 +38,10 @@ class _RegisterPageState extends State<RegisterPage> {
     _nicknameController.addListener(_validateNickname);
     _passwordController.addListener(_validatePassword);
     _confirmPasswordController.addListener(_validateConfirmPassword);
+    _usernameFocus.addListener(() => setState(() {}));
+    _nicknameFocus.addListener(() => setState(() {}));
+    _passwordFocus.addListener(() => setState(() {}));
+    _confirmFocus.addListener(() => setState(() {}));
   }
 
   @override
@@ -43,6 +50,10 @@ class _RegisterPageState extends State<RegisterPage> {
     _nicknameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _usernameFocus.dispose();
+    _nicknameFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
@@ -50,23 +61,14 @@ class _RegisterPageState extends State<RegisterPage> {
     final u = _usernameController.text;
     final phonePattern = RegExp(r'1[3-9]\d{9}');
     final emailPattern = RegExp(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}');
-
     setState(() {
-      if (u.isEmpty) {
-        _usernameError = null; // 空的时候不显示错误
-      } else if (u.length < 6) {
-        _usernameError = '用户名至少需要6个字符';
-      } else if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(u)) {
-        _usernameError = '用户名只能包含字母和数字';
-      } else if (RegExp(r'^\d+$').hasMatch(u)) {
-        _usernameError = '用户名不能为纯数字';
-      } else if (phonePattern.hasMatch(u)) {
-        _usernameError = '用户名不能包含手机号码';
-      } else if (emailPattern.hasMatch(u)) {
-        _usernameError = '用户名不能包含邮箱地址';
-      } else {
-        _usernameError = null;
-      }
+      if (u.isEmpty) { _usernameError = null; }
+      else if (u.length < 6) { _usernameError = '用户名至少需要6个字符'; }
+      else if (!RegExp(r'^[a-zA-Z0-9]+$').hasMatch(u)) { _usernameError = '用户名只能包含字母和数字'; }
+      else if (RegExp(r'^\d+$').hasMatch(u)) { _usernameError = '用户名不能为纯数字'; }
+      else if (phonePattern.hasMatch(u)) { _usernameError = '用户名不能包含手机号码'; }
+      else if (emailPattern.hasMatch(u)) { _usernameError = '用户名不能包含邮箱地址'; }
+      else { _usernameError = null; }
     });
   }
 
@@ -75,43 +77,29 @@ class _RegisterPageState extends State<RegisterPage> {
     final u = _usernameController.text;
     final phonePattern = RegExp(r'1[3-9]\d{9}');
     final emailPattern = RegExp(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}');
-
     setState(() {
-      if (n.isEmpty) {
-        _nicknameError = null;
-      } else if (n.contains(' ')) {
-        _nicknameError = '昵称不能包含空格';
-      } else if (!RegExp(r'^[\u4e00-\u9fffa-zA-Z0-9]+$').hasMatch(n)) {
-        _nicknameError = '昵称只能包含中文、英文和数字';
-      } else if (n.toLowerCase() == u.toLowerCase() && u.isNotEmpty) {
-        _nicknameError = '昵称不能与用户名相同';
-      } else if (phonePattern.hasMatch(n)) {
-        _nicknameError = '昵称不能包含手机号码';
-      } else if (emailPattern.hasMatch(n)) {
-        _nicknameError = '昵称不能包含邮箱地址';
-      } else {
-        _nicknameError = null;
-      }
+      if (n.isEmpty) { _nicknameError = null; }
+      else if (n.contains(' ')) { _nicknameError = '昵称不能包含空格'; }
+      else if (!RegExp(r'^[\u4e00-\u9fffa-zA-Z0-9]+$').hasMatch(n)) { _nicknameError = '昵称只能包含中文、英文和数字'; }
+      else if (n.toLowerCase() == u.toLowerCase() && u.isNotEmpty) { _nicknameError = '昵称不能与用户名相同'; }
+      else if (phonePattern.hasMatch(n)) { _nicknameError = '昵称不能包含手机号码'; }
+      else if (emailPattern.hasMatch(n)) { _nicknameError = '昵称不能包含邮箱地址'; }
+      else { _nicknameError = null; }
     });
   }
 
   void _validatePassword() {
     final p = _passwordController.text;
     setState(() {
-      if (p.isEmpty) {
-        _passwordError = null;
-      } else if (p.length < 8) {
-        _passwordError = '密码至少需要8个字符';
-      } else {
+      if (p.isEmpty) { _passwordError = null; }
+      else if (p.length < 8) { _passwordError = '密码至少需要8个字符'; }
+      else {
         final hasUpper = RegExp(r'[A-Z]').hasMatch(p);
         final hasLower = RegExp(r'[a-z]').hasMatch(p);
         final hasDigit = RegExp(r'[0-9]').hasMatch(p);
         final types = [hasUpper, hasLower, hasDigit].where((b) => b).length;
-        if (types < 2) {
-          _passwordError = '密码需包含大写字母、小写字母、数字中的至少两种';
-        } else {
-          _passwordError = null;
-        }
+        if (types < 2) { _passwordError = '需包含大写、小写、数字中至少两种'; }
+        else { _passwordError = null; }
       }
     });
     _validateConfirmPassword();
@@ -121,13 +109,9 @@ class _RegisterPageState extends State<RegisterPage> {
     final cp = _confirmPasswordController.text;
     final p = _passwordController.text;
     setState(() {
-      if (cp.isEmpty) {
-        _confirmError = null;
-      } else if (cp != p) {
-        _confirmError = '两次输入的密码不一致';
-      } else {
-        _confirmError = null;
-      }
+      if (cp.isEmpty) { _confirmError = null; }
+      else if (cp != p) { _confirmError = '两次输入的密码不一致'; }
+      else { _confirmError = null; }
     });
   }
 
@@ -143,12 +127,12 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _handleRegister() async {
     if (!_isFormValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请检查表单填写是否正确')),
-      );
+      _showMsg('请检查表单填写是否正确');
       return;
     }
 
+    FocusScope.of(context).unfocus();
+    HapticFeedback.lightImpact();
     final auth = context.read<AuthProvider>();
     final success = await auth.register(
       _usernameController.text.trim(),
@@ -158,117 +142,181 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (success && mounted) {
       if (auth.isAuthenticated) {
-        // 注册后自动登录成功，清除路由栈
         try { context.read<ConversationProvider>().reset(); } catch (_) {}
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('注册成功，请登录')),
-        );
+        _showMsg('注册成功，请登录');
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } else if (mounted && auth.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error!)),
-      );
+      HapticFeedback.heavyImpact();
+      _showMsg(auth.error!);
     }
+  }
+
+  void _showMsg(String msg) {
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('提示'),
+        content: Padding(padding: const EdgeInsets.only(top: 8), child: Text(msg)),
+        actions: [CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('确定'))],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.primary, AppColors.primaryDark],
+      backgroundColor: isDark ? AppColors.darkBg : Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: GestureDetector(
+          onTap: () => Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: Icon(CupertinoIcons.back, size: 24),
           ),
         ),
-        child: SafeArea(
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 顶部返回
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false),
-                ),
+              const SizedBox(height: 8),
+              Text(
+                '创建账户',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: isDark ? Colors.white : AppColors.lightText),
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      const Text('创建账户', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-                      const SizedBox(height: 8),
-                      const Text('填写以下信息完成注册', style: TextStyle(fontSize: 14, color: Colors.white70)),
-                      const SizedBox(height: 32),
+              const SizedBox(height: 6),
+              Text(
+                '填写以下信息完成注册',
+                style: TextStyle(fontSize: 14, color: AppColors.systemGray),
+              ),
+              const SizedBox(height: 36),
 
-                      // 表单卡片
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).scaffoldBackgroundColor,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 8)),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            _buildField(_usernameController, '用户名', Icons.person_outline, error: _usernameError, hint: '6位以上字母和数字'),
-                            const SizedBox(height: 16),
-                            _buildField(_nicknameController, '昵称', Icons.badge_outlined, error: _nicknameError, hint: '中文、英文或数字'),
-                            const SizedBox(height: 16),
-                            _buildField(_passwordController, '密码', Icons.lock_outline, error: _passwordError, hint: '8位以上，含大小写或数字', obscure: _obscurePassword, toggleObscure: () => setState(() => _obscurePassword = !_obscurePassword)),
-                            const SizedBox(height: 16),
-                            _buildField(_confirmPasswordController, '确认密码', Icons.lock_outline, error: _confirmError, hint: '再次输入密码', obscure: _obscureConfirm, toggleObscure: () => setState(() => _obscureConfirm = !_obscureConfirm)),
-                            const SizedBox(height: 20),
-
-                            // 协议
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 20, height: 20,
-                                  child: Checkbox(
-                                    value: _agreed,
-                                    onChanged: (v) => setState(() => _agreed = v ?? false),
-                                    activeColor: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: GestureDetector(
-                                    onTap: () => setState(() => _agreed = !_agreed),
-                                    child: const Text('我已阅读并同意《用户协议》和《隐私政策》', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 24),
-
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: (auth.isLoading || !_isFormValid) ? null : _handleRegister,
-                                child: auth.isLoading
-                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                    : const Text('注册'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
+              _buildTextField(
+                controller: _usernameController,
+                focusNode: _usernameFocus,
+                placeholder: '6位以上字母和数字',
+                icon: CupertinoIcons.person,
+                isDark: isDark,
+                error: _usernameError,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => _nicknameFocus.requestFocus(),
+              ),
+              const SizedBox(height: 14),
+              _buildTextField(
+                controller: _nicknameController,
+                focusNode: _nicknameFocus,
+                placeholder: '中文、英文或数字',
+                icon: CupertinoIcons.textformat,
+                isDark: isDark,
+                error: _nicknameError,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => _passwordFocus.requestFocus(),
+              ),
+              const SizedBox(height: 14),
+              _buildTextField(
+                controller: _passwordController,
+                focusNode: _passwordFocus,
+                placeholder: '8位以上，含大小写或数字',
+                icon: CupertinoIcons.lock,
+                isDark: isDark,
+                error: _passwordError,
+                obscure: _obscurePassword,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => _confirmFocus.requestFocus(),
+                suffix: GestureDetector(
+                  onTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Icon(
+                      _obscurePassword ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+                      size: 20, color: AppColors.systemGray,
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 14),
+              _buildTextField(
+                controller: _confirmPasswordController,
+                focusNode: _confirmFocus,
+                placeholder: '再次输入密码',
+                icon: CupertinoIcons.lock,
+                isDark: isDark,
+                error: _confirmError,
+                obscure: _obscureConfirm,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleRegister(),
+                suffix: GestureDetector(
+                  onTap: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Icon(
+                      _obscureConfirm ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
+                      size: 20, color: AppColors.systemGray,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // 协议
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => _agreed = !_agreed);
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: _agreed ? AppColors.primary : Colors.transparent,
+                        border: _agreed ? null : Border.all(color: AppColors.systemGray3, width: 1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: _agreed ? const Icon(Icons.check, size: 12, color: Colors.white) : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '我已阅读并同意《用户协议》和《隐私政策》',
+                        style: TextStyle(fontSize: 13, color: AppColors.systemGray),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: (auth.isLoading || !_isFormValid) ? null : _handleRegister,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
+                    disabledForegroundColor: Colors.white60,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: auth.isLoading
+                      ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                      : const Text('注册', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -276,25 +324,73 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _buildField(TextEditingController controller, String label, IconData icon, {
-    String? error, String? hint, bool obscure = false, VoidCallback? toggleObscure,
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String placeholder,
+    required IconData icon,
+    required bool isDark,
+    String? error,
+    bool obscure = false,
+    Widget? suffix,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onSubmitted,
   }) {
+    final isFocused = focusNode.hasFocus;
+    final hasError = error != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: controller,
-          obscureText: obscure,
-          decoration: InputDecoration(
-            hintText: hint ?? label,
-            prefixIcon: Icon(icon),
-            suffixIcon: toggleObscure != null
-                ? IconButton(icon: Icon(obscure ? Icons.visibility_off : Icons.visibility), onPressed: toggleObscure)
-                : null,
-            errorText: error,
-            errorMaxLines: 2,
+        Container(
+          height: 52,
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: hasError
+                    ? AppColors.error
+                    : isFocused
+                        ? AppColors.primary
+                        : (isDark ? AppColors.darkDivider : AppColors.lightDivider),
+                width: (isFocused || hasError) ? 1.5 : 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: hasError ? AppColors.error : isFocused ? AppColors.primary : AppColors.systemGray),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  obscureText: obscure,
+                  textInputAction: textInputAction,
+                  onSubmitted: onSubmitted,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.white : AppColors.lightText,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: placeholder,
+                    hintStyle: TextStyle(color: AppColors.systemGray2, fontSize: 15),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    isDense: true,
+                    filled: false,
+                  ),
+                ),
+              ),
+              if (suffix != null) suffix,
+            ],
           ),
         ),
+        if (hasError)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 32),
+            child: Text(error, style: const TextStyle(fontSize: 12, color: AppColors.error)),
+          ),
       ],
     );
   }

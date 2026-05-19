@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
@@ -17,6 +19,13 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // iOS 风格状态栏
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
+  ));
 
   // 初始化 JPush 推送（Android）
   await PushService.init();
@@ -45,6 +54,8 @@ class LiaoyaApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
+            // iOS 风格滚动行为
+            scrollBehavior: const CupertinoScrollBehavior(),
             initialRoute: '/splash',
             routes: {
               '/splash': (_) => const SplashPage(),
@@ -55,7 +66,7 @@ class LiaoyaApp extends StatelessWidget {
             onGenerateRoute: (settings) {
               if (settings.name == '/chat') {
                 final conversation = settings.arguments as Map<String, dynamic>;
-                return MaterialPageRoute(
+                return CupertinoPageRoute(
                   builder: (_) => ChatPage(conversation: conversation),
                 );
               }

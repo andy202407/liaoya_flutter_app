@@ -10,30 +10,32 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
+class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-  late AnimationController _bgCtrl;
   late Animation<double> _fade;
   late Animation<double> _scale;
-  late Animation<double> _bgAnim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400));
-    _bgCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000))..repeat(reverse: true);
-    _fade = Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.0, 0.6, curve: Curves.easeOut)));
-    _scale = Tween(begin: 0.6, end: 1.0).animate(CurvedAnimation(parent: _ctrl, curve: const Interval(0.0, 0.7, curve: Curves.elasticOut)));
-    _bgAnim = Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _bgCtrl, curve: Curves.easeInOut));
+    // 动画立即开始，duration 短一些让内容快速出现
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _fade = Tween(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+    );
+    _scale = Tween(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
+    // 立即启动动画，不等待 postFrameCallback
     _ctrl.forward();
-
     _checkAuth();
   }
 
   Future<void> _checkAuth() async {
     final auth = context.read<AuthProvider>();
     await auth.init();
-    await Future.delayed(const Duration(seconds: 2));
+    // 至少显示 1.5 秒启动页
+    await Future.delayed(const Duration(milliseconds: 1500));
 
     if (mounted) {
       if (auth.isAuthenticated) {
@@ -47,103 +49,69 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _ctrl.dispose();
-    _bgCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      body: AnimatedBuilder(
-        animation: _bgAnim,
-        builder: (context, child) {
-          return Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color.lerp(AppColors.primary, const Color(0xFF5B3CC4), _bgAnim.value)!,
-                  Color.lerp(AppColors.primaryDark, const Color(0xFFD946EF), _bgAnim.value)!,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      backgroundColor: isDark ? AppColors.darkBg : Colors.white,
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (context, child) {
+            return Opacity(
+              opacity: _fade.value,
+              child: Transform.scale(
+                scale: _scale.value,
+                child: child,
               ),
-            ),
-            child: child,
-          );
-        },
-        child: Stack(
-          children: [
-            // 装饰圆圈
-            Positioned(top: -60, right: -40, child: _decorCircle(180, 0.06)),
-            Positioned(bottom: -80, left: -50, child: _decorCircle(220, 0.05)),
-            Positioned(top: 200, left: -30, child: _decorCircle(100, 0.08)),
-            Positioned(bottom: 200, right: -20, child: _decorCircle(80, 0.07)),
-            // 主内容
-            Center(
-              child: FadeTransition(
-                opacity: _fade,
-                child: ScaleTransition(
-                  scale: _scale,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // App 图标
-                      Container(
-                        width: 110,
-                        height: 110,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 8)),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28),
-                          child: Image.asset('assets/images/logo.png', width: 110, height: 110, fit: BoxFit.cover),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      const Text(
-                        '洽聊',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                          letterSpacing: 3,
-                          shadows: [Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4))],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          '安全高效的即时通讯',
-                          style: TextStyle(fontSize: 14, color: Colors.white, letterSpacing: 1.5, fontWeight: FontWeight.w300),
-                        ),
-                      ),
-                    ],
-                  ),
+            );
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // App 图标
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset('assets/images/logo.png', width: 88, height: 88, fit: BoxFit.cover),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              Text(
+                '洽聊',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : AppColors.lightText,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '安全高效的即时通讯',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.systemGray,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _decorCircle(double size, double opacity) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: opacity),
       ),
     );
   }

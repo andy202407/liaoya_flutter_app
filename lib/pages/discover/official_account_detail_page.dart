@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/api/api_client.dart';
 import '../../config/api_config.dart';
 import '../../theme/app_colors.dart';
@@ -130,12 +131,12 @@ class _OfficialAccountDetailPageState extends State<OfficialAccountDetailPage> {
                               if (cover.isNotEmpty)
                                 ClipRRect(
                                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                                  child: Image.network(
-                                    cover.startsWith('http') ? cover : '${ApiConfig.baseUrl}$cover',
+                                  child: CachedNetworkImage(
+                                    imageUrl: cover.startsWith('http') ? cover : '${ApiConfig.baseUrl}$cover',
                                     height: 160,
                                     width: double.infinity,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
                                   ),
                                 ),
                               Padding(

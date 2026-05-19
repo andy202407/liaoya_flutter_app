@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:gal/gal.dart';
 import 'package:share_plus/share_plus.dart';
@@ -22,10 +22,12 @@ class ImagePreviewPage extends StatelessWidget {
         children: [
           Center(
             child: InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain, loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return const Center(child: CircularProgressIndicator(color: Colors.white));
-              }),
+              child: CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.contain,
+                placeholder: (_, __) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+                errorWidget: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 48)),
+              ),
             ),
           ),
           Positioned(
@@ -61,17 +63,52 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
   late VideoPlayerController _controller;
   bool _initialized = false;
   bool _showControls = true;
+  bool _hasError = false;
+  String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
-      ..initialize().then((_) {
+    _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+      httpHeaders: const {
+        'Accept': '*/*',
+        'Connection': 'keep-alive',
+      },
+    );
+
+    try {
+      await _controller.initialize();
+      if (mounted) {
         setState(() => _initialized = true);
         _controller.play();
-      });
+      }
+    } catch (e) {
+      debugPrint('[VideoPreview] Initialize error: $e');
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = '视频加载失败，请检查网络或视频格式';
+        });
+      }
+    }
+
     _controller.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted) {
+        // 检测播放错误
+        if (_controller.value.hasError && !_hasError) {
+          setState(() {
+            _hasError = true;
+            _errorMessage = _controller.value.errorDescription ?? '视频播放出错';
+          });
+        } else {
+          setState(() {});
+        }
+      }
     });
   }
 
@@ -96,12 +133,53 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
         child: Stack(
           children: [
             Center(
-              child: _initialized
-                  ? AspectRatio(
-                      aspectRatio: _controller.value.aspectRatio,
-                      child: VideoPlayer(_controller),
+              child: _hasError
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.white54, size: 48),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            _errorMessage,
+                            style: const TextStyle(color: Colors.white70, fontSize: 14),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _hasError = false;
+                              _initialized = false;
+                            });
+                            _controller.dispose();
+                            _initializePlayer();
+                          },
+                          icon: const Icon(Icons.refresh, color: Colors.white70),
+                          label: const Text('重试', style: TextStyle(color: Colors.white70)),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () async {
+                            // 尝试用系统播放器打开
+                            final uri = Uri.parse(widget.url);
+                            if (await canLaunchUrl(uri)) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                          icon: const Icon(Icons.open_in_new, color: Colors.white70),
+                          label: const Text('用系统播放器打开', style: TextStyle(color: Colors.white70)),
+                        ),
+                      ],
                     )
-                  : const CircularProgressIndicator(color: Colors.white),
+                  : _initialized
+                      ? AspectRatio(
+                          aspectRatio: _controller.value.aspectRatio,
+                          child: VideoPlayer(_controller),
+                        )
+                      : const CircularProgressIndicator(color: Colors.white),
             ),
             if (_showControls)
               Positioned(
@@ -112,7 +190,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
                   onPressed: () => Navigator.pop(context),
                 ),
               ),
-            if (_showControls && _initialized)
+            if (_showControls && _initialized && !_hasError)
               Center(
                 child: GestureDetector(
                   onTap: () => _controller.value.isPlaying ? _controller.pause() : _controller.play(),
@@ -123,7 +201,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
                   ),
                 ),
               ),
-            if (_showControls)
+            if (_showControls && !_hasError)
               Positioned(
                 bottom: 0, left: 0, right: 0,
                 child: Column(

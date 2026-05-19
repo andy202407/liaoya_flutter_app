@@ -1,6 +1,6 @@
 class AppConstants {
   static const String appName = '洽聊';
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '2.0.1';
 
   // Storage keys
   static const String tokenKey = 'auth_token';

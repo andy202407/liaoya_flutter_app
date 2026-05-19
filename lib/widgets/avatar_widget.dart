@@ -156,14 +156,14 @@ class AvatarWidget extends StatelessWidget {
 
   Widget _buildPlaceholder() {
     final colors = [
-      const Color(0xFF7C5CFC),
-      const Color(0xFFFF6B6B),
-      const Color(0xFF4ECDC4),
-      const Color(0xFFFFBE0B),
-      const Color(0xFF3B82F6),
-      const Color(0xFFEC4899),
-      const Color(0xFF10B981),
-      const Color(0xFFF97316),
+      const Color(0xFF007AFF), // iOS Blue
+      const Color(0xFFFF3B30), // iOS Red
+      const Color(0xFF34C759), // iOS Green
+      const Color(0xFFFF9500), // iOS Orange
+      const Color(0xFF5856D6), // iOS Purple
+      const Color(0xFFAF52DE), // iOS Violet
+      const Color(0xFF5AC8FA), // iOS Teal
+      const Color(0xFFFF2D55), // iOS Pink
     ];
     final colorIndex = name.codeUnits.fold<int>(0, (prev, c) => prev + c) % colors.length;
 

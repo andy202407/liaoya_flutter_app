@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import '../../services/api/api_client.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_text_styles.dart';
 import 'check_in_page.dart';
 import 'official_account_list_page.dart';
 
@@ -47,46 +47,79 @@ class _DiscoverPageState extends State<DiscoverPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('发现')),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadMenu,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm, horizontal: AppSpacing.lg),
-                itemCount: _menuItems.length,
-                itemBuilder: (context, index) {
-                  final item = _menuItems[index];
-                  final name = item['name'] as String? ?? '';
-                  final colorHex = item['color'] as String? ?? '#6366F1';
-                  final color = _parseColor(colorHex);
-                  final key = item['key'] as String? ?? '';
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 2),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkCard : Colors.white,
-                      borderRadius: index == 0
-                          ? const BorderRadius.vertical(top: Radius.circular(12))
-                          : index == _menuItems.length - 1
-                              ? const BorderRadius.vertical(bottom: Radius.circular(12))
-                              : BorderRadius.zero,
-                    ),
-                    child: ListTile(
-                      leading: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: color.withAlpha(30),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(_getIcon(key), color: color, size: 20),
+          ? const Center(child: CupertinoActivityIndicator())
+          : CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              slivers: [
+                CupertinoSliverRefreshControl(
+                  onRefresh: _loadMenu,
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverToBoxAdapter(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkCard : Colors.white,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      title: Text(name, style: AppTextStyles.body.copyWith(color: isDark ? AppColors.darkText : AppColors.lightText)),
-                      trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
-                      onTap: () => _onItemTap(key),
+                      child: Column(
+                        children: List.generate(_menuItems.length, (index) {
+                          final item = _menuItems[index];
+                          final name = item['name'] as String? ?? '';
+                          final colorHex = item['color'] as String? ?? '#007AFF';
+                          final color = _parseColor(colorHex);
+                          final key = item['key'] as String? ?? '';
+                          final isLast = index == _menuItems.length - 1;
+
+                          return Column(
+                            children: [
+                              CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                onPressed: () => _onItemTap(key),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: color,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(_getIcon(key), color: Colors.white, size: 18),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          name,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: isDark ? AppColors.darkText : AppColors.lightText,
+                                          ),
+                                        ),
+                                      ),
+                                      Icon(CupertinoIcons.chevron_right, size: 14, color: AppColors.systemGray3),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              if (!isLast)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 60),
+                                  child: Divider(
+                                    height: 0.33,
+                                    color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
+                                  ),
+                                ),
+                            ],
+                          );
+                        }),
+                      ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ),
     );
   }
@@ -99,31 +132,34 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   IconData _getIcon(String key) {
     switch (key) {
-      case 'checkin': return Icons.check_circle_rounded;
-      case 'official': return Icons.article_rounded;
-      case 'video': return Icons.play_circle_rounded;
-      case 'sports': return Icons.live_tv_rounded;
-      case 'moments': return Icons.photo_camera_rounded;
-      case 'shake': return Icons.vibration_rounded;
-      case 'bottle': return Icons.water_drop_rounded;
-      case 'games': return Icons.sports_esports_rounded;
-      case 'miniprogram': return Icons.apps_rounded;
-      case 'shopping': return Icons.shopping_bag_rounded;
-      case 'nearby': return Icons.location_on_rounded;
-      default: return Icons.explore_rounded;
+      case 'checkin': return CupertinoIcons.checkmark_seal;
+      case 'official': return CupertinoIcons.doc_text;
+      case 'video': return CupertinoIcons.play_circle;
+      case 'sports': return CupertinoIcons.tv;
+      case 'moments': return CupertinoIcons.camera;
+      case 'shake': return CupertinoIcons.waveform;
+      case 'bottle': return CupertinoIcons.drop;
+      case 'games': return CupertinoIcons.game_controller;
+      case 'miniprogram': return CupertinoIcons.square_grid_2x2;
+      case 'shopping': return CupertinoIcons.bag;
+      case 'nearby': return CupertinoIcons.location;
+      default: return CupertinoIcons.compass;
     }
   }
 
   void _onItemTap(String key) {
+    HapticFeedback.selectionClick();
     switch (key) {
       case 'checkin':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const CheckInPage()));
+        Navigator.push(context, CupertinoPageRoute(builder: (_) => const CheckInPage()));
         break;
       case 'official':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const OfficialAccountListPage()));
+        Navigator.push(context, CupertinoPageRoute(builder: (_) => const OfficialAccountListPage()));
         break;
       default:
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$key 功能开发中'), duration: const Duration(seconds: 1)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$key 功能开发中'), duration: const Duration(seconds: 1)),
+        );
     }
   }
 }

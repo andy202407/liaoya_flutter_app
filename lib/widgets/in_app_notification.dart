@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../config/api_config.dart';
+import '../theme/app_colors.dart';
 import 'avatar_widget.dart';
 
 /// iOS 风格应用内消息通知弹窗
@@ -184,16 +184,18 @@ class _NotificationBannerState extends State<_NotificationBanner> with SingleTic
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: widget.isGroup
-                                      ? [const Color(0xFF6366F1), const Color(0xFF4F46E5)]
-                                      : [const Color(0xFF10B981), const Color(0xFF059669)],
-                                ),
-                                borderRadius: BorderRadius.circular(6),
+                                color: widget.isGroup
+                                    ? AppColors.primary.withAlpha(20)
+                                    : AppColors.success.withAlpha(20),
+                                borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 widget.isGroup ? '群聊' : '好友',
-                                style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: widget.isGroup ? AppColors.primary : AppColors.success,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ],
@@ -213,7 +215,7 @@ class _NotificationBannerState extends State<_NotificationBanner> with SingleTic
                     ),
                   ),
                   // 箭头
-                  Icon(Icons.chevron_right, size: 18, color: isDark ? Colors.white38 : Colors.black26),
+                  Icon(Icons.chevron_right, size: 16, color: isDark ? Colors.white24 : Colors.black26),
                 ],
               ),
             ),
