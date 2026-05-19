@@ -276,7 +276,7 @@ class ConversationProvider extends ChangeNotifier {
       _conversations[systemIndex] = {
         ..._conversations[systemIndex],
         'last_message': text,
-        'last_time': DateTime.now().toIso8601String(),
+        'last_time': DateTime.now().toUtc().toIso8601String(),
         'unread_count': ((_conversations[systemIndex]['unread_count'] as int?) ?? 0) + 1,
       };
     } else {
@@ -287,7 +287,7 @@ class ConversationProvider extends ChangeNotifier {
         'friend_id': 1,
         'friend': {'id': 1, 'nickname': '系统通知', 'username': '系统通知', 'avatar': ''},
         'last_message': text,
-        'last_time': DateTime.now().toIso8601String(),
+        'last_time': DateTime.now().toUtc().toIso8601String(),
         'unread_count': 1,
         'pinned': true,
       });

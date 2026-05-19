@@ -145,7 +145,7 @@ class DatabaseService {
         'id': id,
         'data': jsonEncode(conv),
         'last_time': conv['last_time'] ?? '',
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);

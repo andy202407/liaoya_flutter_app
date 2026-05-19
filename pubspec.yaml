@@ -1,7 +1,7 @@
 ﻿name: liaoya_app
-description: "æ´½èŠ - å³æ—¶é€šè®¯App"
-publish_to: 'none'
-version: 2.0.2+2
+description: "洽聊 - 安全高效的即时通讯App"
+publish_to: 'none'   
+version: 2.0.2+2  # 安卓每次加0.0.1版本， IOS固定2.0.1不变，
 
 environment:
   sdk: ^3.7.2

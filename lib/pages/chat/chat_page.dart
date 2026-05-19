@@ -346,7 +346,7 @@ class _ChatPageState extends State<ChatPage> {
         WebSocketService.instance.send({
           'type': 'clear_group_unread',
           'content': {'group_id': _groupId},
-          'timestamp': DateTime.now().toIso8601String(),
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
         });
         _dio.post('/groups/$_groupId/read').catchError((e) => null);
       }
@@ -358,7 +358,7 @@ class _ChatPageState extends State<ChatPage> {
           'type': 'message_read',
           'from': userId,
           'to': _friendId,
-          'timestamp': DateTime.now().toIso8601String(),
+          'timestamp': DateTime.now().toUtc().toIso8601String(),
         });
         // HTTP API 确保后端清除未读（防止 WebSocket 丢失）
         _dio.put('/messages/$_friendId/read').catchError((e) => null);
@@ -443,7 +443,7 @@ class _ChatPageState extends State<ChatPage> {
         'id': DateTime.now().millisecondsSinceEpoch,
         'content': text,
         'type': 'system',
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toUtc().toIso8601String(),
       }));
     }
   }
@@ -707,7 +707,7 @@ class _ChatPageState extends State<ChatPage> {
           'content': text,
           'type': 'text',
           'quoted_message': quotedData,
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
           'from_user': currentUser,
           'temp': true,
         }));
@@ -836,7 +836,7 @@ class _ChatPageState extends State<ChatPage> {
           'thumbnail': thumbnail,
           'image_width': imageWidth,
           'image_height': imageHeight,
-          'created_at': DateTime.now().toIso8601String(),
+          'created_at': DateTime.now().toUtc().toIso8601String(),
           'temp': true,
         }));
         _scrollToBottom();
