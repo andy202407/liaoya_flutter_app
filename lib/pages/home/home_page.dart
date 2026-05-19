@@ -210,7 +210,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       final dio = ApiClient.instance.dio;
       // 根据平台选择不同的配置接口
       final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-      final configPath = isIOS ? '/ios/config' : '/android/config';
+      final configPath = isIOS ? '/app/version/ios' : '/app/version/android';
       final res = await dio.get(configPath);
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];

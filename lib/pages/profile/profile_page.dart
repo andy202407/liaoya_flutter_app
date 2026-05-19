@@ -41,7 +41,7 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final dio = ApiClient.instance.dio;
       final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-      final configPath = isIOS ? '/ios/config' : '/android/config';
+      final configPath = isIOS ? '/app/version/ios' : '/app/version/android';
       final res = await dio.get(configPath);
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];
@@ -482,7 +482,7 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final dio = ApiClient.instance.dio;
       final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
-      final configPath = isIOS ? '/ios/config' : '/android/config';
+      final configPath = isIOS ? '/app/version/ios' : '/app/version/android';
       final res = await dio.get(configPath);
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];
