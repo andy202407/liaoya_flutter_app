@@ -1695,52 +1695,15 @@ class _MessageBubble extends StatelessWidget {
       final fileName = (message['content'] as String?)?.isNotEmpty == true
           ? message['content'] as String
           : '文件';
-      return Builder(
-        builder: (ctx) => GestureDetector(
-          onTap: () {
-            if (fileUrl.isNotEmpty) {
-              String fullUrl = fileUrl;
-              if (!fullUrl.startsWith('http')) {
-                fullUrl = '${ApiConfig.baseUrl}$fullUrl';
-              }
-              _downloadFile(ctx, fullUrl, fileName);
-            }
-          },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: (isMe ? Colors.white : AppColors.primary).withAlpha(20),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.insert_drive_file_rounded, size: 28, color: isMe ? Colors.white70 : AppColors.primary),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      fileName,
-                      style: TextStyle(fontSize: 14, color: isMe ? Colors.white : (isDark ? AppColors.darkText : AppColors.lightText)),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '点击下载',
-                      style: TextStyle(fontSize: 11, color: isMe ? Colors.white54 : AppColors.systemGray),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.download_rounded, size: 20, color: isMe ? Colors.white54 : AppColors.primary),
-            ],
-          ),
-        ),
-      ),
+      String fullUrl = fileUrl;
+      if (fullUrl.isNotEmpty && !fullUrl.startsWith('http')) {
+        fullUrl = '${ApiConfig.baseUrl}$fullUrl';
+      }
+      return _FileMessageCard(
+        url: fullUrl,
+        fileName: fileName,
+        isMe: isMe,
+        isDark: isDark,
       );
     }
 
@@ -2119,21 +2082,18 @@ class _MessageBubble extends StatelessWidget {
     ));
   }
 
-  /// 下载文件到本地
+  /// 下载文件到本地（图片/视频预览页用）
   static void _downloadFile(BuildContext context, String url, String fileName) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在下载...'), duration: Duration(seconds: 1)));
       final dio = Dio();
       final tempDir = await getTemporaryDirectory();
-      // 保留原始文件扩展名
       String ext = '';
       final dotIdx = fileName.lastIndexOf('.');
       if (dotIdx > 0) ext = fileName.substring(dotIdx);
       if (ext.isEmpty) ext = '.dat';
       final filePath = '${tempDir.path}/download_${DateTime.now().millisecondsSinceEpoch}$ext';
       await dio.download(url, filePath);
-
-      // 分享文件（让用户选择保存位置或打开方式）
       final xFile = XFile(filePath, name: fileName);
       await Share.shareXFiles([xFile], text: fileName);
     } catch (e) {
@@ -2298,6 +2258,148 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
                 height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
               ),
+      ),
+    );
+  }
+}
+
+/// 文件消息卡片 - 带下载进度
+class _FileMessageCard extends StatefulWidget {
+  final String url;
+  final String fileName;
+  final bool isMe;
+  final bool isDark;
+
+  const _FileMessageCard({
+    required this.url,
+    required this.fileName,
+    required this.isMe,
+    required this.isDark,
+  });
+
+  @override
+  State<_FileMessageCard> createState() => _FileMessageCardState();
+}
+
+class _FileMessageCardState extends State<_FileMessageCard> {
+  double _progress = 0;
+  bool _downloading = false;
+  bool _done = false;
+
+  Future<void> _download() async {
+    if (_downloading || widget.url.isEmpty) return;
+    setState(() { _downloading = true; _progress = 0; _done = false; });
+
+    try {
+      final dio = Dio();
+      final tempDir = await getTemporaryDirectory();
+      String ext = '';
+      final dotIdx = widget.fileName.lastIndexOf('.');
+      if (dotIdx > 0) ext = widget.fileName.substring(dotIdx);
+      if (ext.isEmpty) ext = '.dat';
+      final filePath = '${tempDir.path}/download_${DateTime.now().millisecondsSinceEpoch}$ext';
+
+      await dio.download(
+        widget.url,
+        filePath,
+        onReceiveProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() => _progress = received / total);
+          }
+        },
+      );
+
+      setState(() { _done = true; _downloading = false; });
+
+      // 下载完成，弹出分享
+      final xFile = XFile(filePath, name: widget.fileName);
+      await Share.shareXFiles([xFile], text: widget.fileName);
+    } catch (e) {
+      if (mounted) {
+        setState(() { _downloading = false; _progress = 0; });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下载失败')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMe = widget.isMe;
+    final isDark = widget.isDark;
+
+    return GestureDetector(
+      onTap: _download,
+      child: Container(
+        width: 200,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: (isMe ? Colors.white : AppColors.primary).withAlpha(15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  _done ? Icons.check_circle_rounded : Icons.insert_drive_file_rounded,
+                  size: 28,
+                  color: _done
+                      ? AppColors.success
+                      : (isMe ? Colors.white70 : AppColors.primary),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.fileName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isMe ? Colors.white : (isDark ? AppColors.darkText : AppColors.lightText),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // 进度条 / 状态
+            if (_downloading)
+              Column(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                      value: _progress,
+                      minHeight: 3,
+                      backgroundColor: (isMe ? Colors.white : AppColors.primary).withAlpha(30),
+                      valueColor: AlwaysStoppedAnimation(isMe ? Colors.white : AppColors.primary),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(_progress * 100).toInt()}%',
+                    style: TextStyle(fontSize: 11, color: isMe ? Colors.white54 : AppColors.systemGray),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  Icon(
+                    _done ? Icons.open_in_new : Icons.download_rounded,
+                    size: 14,
+                    color: isMe ? Colors.white54 : AppColors.systemGray,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _done ? '已下载，点击再次打开' : '点击下载',
+                    style: TextStyle(fontSize: 11, color: isMe ? Colors.white54 : AppColors.systemGray),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }
