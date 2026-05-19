@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart' as dio_pkg;
+import 'package:open_filex/open_filex.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
@@ -11,8 +16,6 @@ import '../../services/api/api_client.dart';
 import '../../config/api_config.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_spacing.dart';
-import '../../theme/app_text_styles.dart';
 import '../../theme/theme_provider.dart';
 import '../../widgets/avatar_widget.dart';
 
@@ -24,15 +27,12 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  bool _soundEnabled = true;
-  bool _popupEnabled = true;
   bool _hasUpdate = false;
   Map<String, dynamic>? _localUser;
 
   @override
   void initState() {
     super.initState();
-    _loadNotifSettings();
     _loadLocalUser();
     _checkHasUpdate();
   }
@@ -40,12 +40,16 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _checkHasUpdate() async {
     try {
       final dio = ApiClient.instance.dio;
-      final res = await dio.get('/android/config');
+      final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+      final configPath = isIOS ? '/ios/config' : '/android/config';
+      final res = await dio.get(configPath);
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];
         final latestVersion = data['version']?.toString() ?? '';
-        final apkUrl = data['apk_url']?.toString() ?? '';
-        if (latestVersion.isEmpty || apkUrl.isEmpty) return;
+        final downloadUrl = isIOS
+            ? (data['download_url']?.toString() ?? '')
+            : (data['apk_url']?.toString() ?? '');
+        if (latestVersion.isEmpty || downloadUrl.isEmpty) return;
         final packageInfo = await PackageInfo.fromPlatform();
         if (_compareVersions(latestVersion, packageInfo.version) > 0) {
           if (mounted) setState(() => _hasUpdate = true);
@@ -62,20 +66,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> _loadNotifSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _soundEnabled = prefs.getBool('chat_sound_enabled') ?? true;
-      _popupEnabled = prefs.getBool('chat_popup_enabled') ?? true;
-    });
-  }
-
-  Future<void> _saveNotifSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('chat_sound_enabled', _soundEnabled);
-    await prefs.setBool('chat_popup_enabled', _popupEnabled);
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -86,68 +76,94 @@ class _ProfilePageState extends State<ProfilePage> {
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         children: [
-          // 用户信息卡片
+          const SizedBox(height: 8),
+          // 用户信息卡片 - iOS 风格
           _buildUserCard(context, auth, user, isDark),
-
-          const SizedBox(height: AppSpacing.lg),
+          const SizedBox(height: 24),
 
           // 账号信息
-          _buildSection(context, '账号信息', [
-            _buildItem(context, Icons.wallet_rounded, '我的钱包', isDark, onTap: () => _showWallet(context)),
-            _buildItem(context, Icons.lock_outline_rounded, '修改密码', isDark, onTap: () => _showChangePassword(context)),
+          _buildSectionHeader('账号信息', isDark),
+          _buildGroupedList(context, isDark, [
+            _buildIOSItem(context, CupertinoIcons.creditcard, '我的钱包', isDark, onTap: () => _showWallet(context)),
+            _buildIOSItem(context, CupertinoIcons.lock, '修改密码', isDark, onTap: () => _showChangePassword(context)),
           ]),
 
-          const SizedBox(height: AppSpacing.sm),
-
-          // 消息与通知（暂未联动，先隐藏）
-          // _buildSection(context, '消息与通知', [
-          //   _buildSwitchItem(context, Icons.volume_up_rounded, '消息提示音', '收到新消息时播放提示音', isDark,
-          //     value: _soundEnabled,
-          //     onChanged: (v) { setState(() => _soundEnabled = v); _saveNotifSettings(); },
-          //   ),
-          //   _buildSwitchItem(context, Icons.notifications_active_rounded, '消息弹窗', '收到新消息时顶部弹窗提醒', isDark,
-          //     value: _popupEnabled,
-          //     onChanged: (v) { setState(() => _popupEnabled = v); _saveNotifSettings(); },
-          //   ),
-          // ]),
-
-          // const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: 24),
 
           // 应用偏好
-          _buildSection(context, '应用偏好', [
-            _buildSwitchItem(context, Icons.dark_mode_rounded, '深色模式', null, isDark,
+          _buildSectionHeader('应用偏好', isDark),
+          _buildGroupedList(context, isDark, [
+            _buildIOSSwitchItem(context, CupertinoIcons.moon, '深色模式', isDark,
               value: theme.isDark,
               onChanged: (_) => theme.toggleTheme(),
             ),
-            _buildItem(context, Icons.cleaning_services_rounded, '清除缓存', isDark, onTap: () => _clearCache(context)),
-            _buildUpdateItem(context, isDark),
+            _buildIOSItem(context, CupertinoIcons.trash, '清除缓存', isDark, onTap: () => _clearCache(context)),
+            _buildIOSItem(context, CupertinoIcons.arrow_down_circle, '检查更新', isDark,
+              trailing: _hasUpdate ? _buildNewBadge() : null,
+              onTap: () => _checkUpdate(context),
+            ),
             _buildVersionItem(context, isDark),
           ]),
 
-          const SizedBox(height: AppSpacing.xxxl),
+          const SizedBox(height: 40),
 
-          // 退出按钮
+          // 退出按钮 - iOS 风格
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: SizedBox(
-              width: double.infinity,
-              child: TextButton(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: CupertinoButton(
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 onPressed: () => _logout(context, auth),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  backgroundColor: AppColors.error.withAlpha(20),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
+                child: const Center(
+                  child: Text(
+                    '退出登录',
+                    style: TextStyle(color: AppColors.error, fontSize: 17),
+                  ),
                 ),
-                child: const Text('退出登录', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
             ),
           ),
-          const SizedBox(height: AppSpacing.xxxl),
+          const SizedBox(height: 40),
         ],
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 0, 16, 6),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.systemGray,
+          fontWeight: FontWeight.w400,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupedList(BuildContext context, bool isDark, List<Widget> items) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(children: items),
+    );
+  }
+
+  Widget _buildNewBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(8)),
+      child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -157,23 +173,23 @@ class _ProfilePageState extends State<ProfilePage> {
     final avatar = user?['avatar'] as String?;
     final userId = auth.userId ?? user?['id'];
 
-    return GestureDetector(
-      onTap: () => _showEditNickname(context, auth, nickname),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(14),
-        ),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => _showEditNickname(context, auth, nickname),
         child: Row(
           children: [
-            // 头像 + 相机图标
             GestureDetector(
               onTap: () => _showAvatarPicker(context, auth),
               child: Stack(
                 children: [
-                  AvatarWidget(url: avatar, name: nickname, size: 56),
+                  AvatarWidget(url: avatar, name: nickname, size: 60),
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -183,9 +199,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       decoration: BoxDecoration(
                         color: AppColors.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: isDark ? Colors.black : Colors.white, width: 2),
+                        border: Border.all(color: isDark ? AppColors.darkCard : Colors.white, width: 2),
                       ),
-                      child: const Icon(Icons.camera_alt, size: 11, color: Colors.white),
+                      child: const Icon(CupertinoIcons.camera, size: 10, color: Colors.white),
                     ),
                   ),
                 ],
@@ -196,105 +212,90 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(nickname, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black87)),
-                      const SizedBox(width: 6),
-                      Icon(Icons.edit, size: 14, color: isDark ? Colors.white38 : Colors.black26),
-                    ],
+                  Text(
+                    nickname,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: isDark ? Colors.white : AppColors.lightText),
                   ),
                   const SizedBox(height: 4),
-                  Text('@$username', style: TextStyle(fontSize: 13, color: isDark ? Colors.white54 : Colors.black45)),
+                  Text('@$username', style: TextStyle(fontSize: 14, color: AppColors.systemGray)),
                   const SizedBox(height: 2),
                   GestureDetector(
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: '$userId'));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ID已复制'), duration: Duration(seconds: 1)));
+                      HapticFeedback.lightImpact();
                     },
                     child: Row(
                       children: [
-                        Text('ID: $userId', style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38)),
+                        Text('ID: $userId', style: TextStyle(fontSize: 12, color: AppColors.systemGray2)),
                         const SizedBox(width: 4),
-                        Icon(Icons.copy, size: 12, color: isDark ? Colors.white38 : Colors.black26),
+                        Icon(CupertinoIcons.doc_on_doc, size: 11, color: AppColors.systemGray2),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, size: 18, color: isDark ? Colors.white24 : Colors.black26),
+            Icon(CupertinoIcons.chevron_right, size: 16, color: AppColors.systemGray3),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSection(BuildContext context, String title, List<Widget> items) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  Widget _buildIOSItem(BuildContext context, IconData icon, String title, bool isDark, {VoidCallback? onTap, Widget? trailing}) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg + 4, 8, 0, 6),
-          child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: isDark ? Colors.white38 : Colors.black38)),
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(12),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(icon, color: AppColors.primary, size: 22),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(title, style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText)),
+                ),
+                if (trailing != null) ...[trailing, const SizedBox(width: 8)],
+                Icon(CupertinoIcons.chevron_right, size: 14, color: AppColors.systemGray3),
+              ],
+            ),
           ),
-          child: Column(children: items),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 50),
+          child: Divider(height: 0.33, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
         ),
       ],
     );
   }
 
-  Widget _buildItem(BuildContext context, IconData icon, String title, bool isDark, {VoidCallback? onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.primary, size: 22),
-      title: Text(title, style: AppTextStyles.body),
-      trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? Colors.white24 : Colors.black26),
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildSwitchItem(BuildContext context, IconData icon, String title, String? subtitle, bool isDark, {required bool value, required ValueChanged<bool> onChanged}) {
-    return ListTile(
-      leading: Icon(icon, color: AppColors.primary, size: 22),
-      title: Text(title, style: AppTextStyles.body),
-      subtitle: subtitle != null ? Text(subtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38)) : null,
-      trailing: Switch.adaptive(
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.primary,
-        thumbColor: const WidgetStatePropertyAll(Colors.white),
-      ),
-    );
-  }
-
-  Widget _buildUpdateItem(BuildContext context, bool isDark) {
-    return ListTile(
-      leading: Badge(
-        isLabelVisible: _hasUpdate,
-        smallSize: 8,
-        child: Icon(Icons.system_update_rounded, color: AppColors.primary, size: 22),
-      ),
-      title: Row(
-        children: [
-          Text('检查更新', style: AppTextStyles.body),
-          if (_hasUpdate) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(8)),
-              child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ],
-      ),
-      trailing: Icon(Icons.chevron_right_rounded, size: 16, color: isDark ? Colors.white24 : Colors.black26),
-      onTap: () => _checkUpdate(context),
+  Widget _buildIOSSwitchItem(BuildContext context, IconData icon, String title, bool isDark, {required bool value, required ValueChanged<bool> onChanged}) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.primary, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(title, style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText)),
+              ),
+              CupertinoSwitch(
+                value: value,
+                onChanged: onChanged,
+                activeTrackColor: AppColors.success,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(left: 50),
+          child: Divider(height: 0.33, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+        ),
+      ],
     );
   }
 
@@ -303,17 +304,24 @@ class _ProfilePageState extends State<ProfilePage> {
       future: PackageInfo.fromPlatform(),
       builder: (context, snapshot) {
         final version = snapshot.data?.version ?? '...';
-        return ListTile(
-          leading: Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 22),
-          title: Text('当前版本', style: AppTextStyles.body),
-          trailing: Text(version, style: TextStyle(fontSize: 14, color: isDark ? Colors.white38 : Colors.black45)),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(CupertinoIcons.info, color: AppColors.primary, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('当前版本', style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText)),
+              ),
+              Text(version, style: TextStyle(fontSize: 15, color: AppColors.systemGray)),
+            ],
+          ),
         );
       },
     );
   }
 
   void _showAvatarPicker(BuildContext context, AuthProvider auth) async {
-    // 获取默认头像列表
     List<String> avatars = [];
     try {
       final res = await ApiClient.instance.dio.get('/user/default-avatars');
@@ -328,29 +336,32 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showCupertinoModalPopup<String>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.8,
-        expand: false,
-        builder: (_, scrollCtrl) => Column(
+      builder: (ctx) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('选择头像', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  CupertinoButton(padding: EdgeInsets.zero, onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+                  const Text('选择头像', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 60),
+                ],
+              ),
             ),
             Expanded(
               child: GridView.builder(
-                controller: scrollCtrl,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
+                  crossAxisCount: 5, mainAxisSpacing: 10, crossAxisSpacing: 10,
                 ),
                 itemCount: avatars.length,
                 itemBuilder: (_, index) {
@@ -368,35 +379,29 @@ class _ProfilePageState extends State<ProfilePage> {
     );
 
     if (selected == null || !context.mounted) return;
-
-    // 设置选中的头像
     try {
       final res = await ApiClient.instance.dio.post('/user/avatar/default', data: {'avatar_url': selected});
       if (res.data['success'] == true) {
         await auth.refreshProfile();
         _loadLocalUser();
-        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('头像已更新')));
       }
-    } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('更新失败')));
-    }
+    } catch (_) {}
   }
 
   void _showEditNickname(BuildContext context, AuthProvider auth, String currentNickname) {
     final controller = TextEditingController(text: currentNickname);
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text('修改昵称'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '输入新昵称'),
-          maxLength: 50,
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: CupertinoTextField(controller: controller, autofocus: true, placeholder: '输入新昵称', maxLength: 50),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () async {
               final newNickname = controller.text.trim();
               if (newNickname.isEmpty) return;
@@ -404,10 +409,7 @@ class _ProfilePageState extends State<ProfilePage> {
               try {
                 await ApiClient.instance.dio.put('/user/nickname', data: {'nickname': newNickname});
                 await auth.refreshProfile();
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('昵称已更新')));
-              } catch (_) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('更新失败')));
-              }
+              } catch (_) {}
             },
             child: const Text('确定'),
           ),
@@ -421,23 +423,26 @@ class _ProfilePageState extends State<ProfilePage> {
     final newPwdCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
 
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text('修改密码'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: oldPwdCtrl, obscureText: true, decoration: const InputDecoration(labelText: '当前密码')),
-            const SizedBox(height: 8),
-            TextField(controller: newPwdCtrl, obscureText: true, decoration: const InputDecoration(labelText: '新密码')),
-            const SizedBox(height: 8),
-            TextField(controller: confirmCtrl, obscureText: true, decoration: const InputDecoration(labelText: '确认新密码')),
-          ],
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              CupertinoTextField(controller: oldPwdCtrl, obscureText: true, placeholder: '当前密码', padding: const EdgeInsets.all(12)),
+              const SizedBox(height: 8),
+              CupertinoTextField(controller: newPwdCtrl, obscureText: true, placeholder: '新密码', padding: const EdgeInsets.all(12)),
+              const SizedBox(height: 8),
+              CupertinoTextField(controller: confirmCtrl, obscureText: true, placeholder: '确认新密码', padding: const EdgeInsets.all(12)),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () async {
               if (newPwdCtrl.text != confirmCtrl.text) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('两次密码不一致')));
@@ -451,7 +456,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 });
                 if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('密码已修改')));
               } catch (_) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('修改失败，请检查当前密码')));
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('修改失败')));
               }
             },
             child: const Text('确定'),
@@ -463,26 +468,31 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _clearCache(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    // 保留 token 和 user 数据，只清除其他缓存
     final token = prefs.getString('token');
     final user = prefs.getString('user');
     await prefs.clear();
     if (token != null) await prefs.setString('token', token);
     if (user != null) await prefs.setString('user', user);
+    // 清除图片磁盘缓存
+    await DefaultCacheManager().emptyCache();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('缓存已清除')));
   }
 
   Future<void> _checkUpdate(BuildContext context) async {
     try {
       final dio = ApiClient.instance.dio;
-      final res = await dio.get('/android/config');
+      final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+      final configPath = isIOS ? '/ios/config' : '/android/config';
+      final res = await dio.get(configPath);
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];
-        final apkUrl = data['apk_url']?.toString() ?? '';
+        final downloadUrl = isIOS
+            ? (data['download_url']?.toString() ?? '')
+            : (data['apk_url']?.toString() ?? '');
         final latestVersion = data['version']?.toString() ?? '';
         final updateMessage = data['update_message']?.toString() ?? '';
         final forceUpdate = data['force_update'] == true;
-        if (apkUrl.isEmpty || latestVersion.isEmpty) {
+        if (downloadUrl.isEmpty || latestVersion.isEmpty) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用更新')));
           return;
         }
@@ -490,32 +500,29 @@ class _ProfilePageState extends State<ProfilePage> {
         final currentVersion = packageInfo.version;
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
-          showDialog(
+          showCupertinoDialog(
             context: context,
             barrierDismissible: !forceUpdate,
-            builder: (ctx) => AlertDialog(
+            builder: (ctx) => CupertinoAlertDialog(
               title: const Text('发现新版本'),
               content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('最新版本: $latestVersion'),
-                  Text('当前版本: $currentVersion'),
+                  const SizedBox(height: 8),
+                  Text('最新版本: $latestVersion\n当前版本: $currentVersion'),
                   if (updateMessage.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    const Text('更新内容:', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    Text(updateMessage),
+                    const SizedBox(height: 8),
+                    Text(updateMessage, style: const TextStyle(fontSize: 13)),
                   ],
                 ],
               ),
               actions: [
                 if (!forceUpdate)
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('稍后')),
-                TextButton(
+                  CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('稍后')),
+                CupertinoDialogAction(
+                  isDefaultAction: true,
                   onPressed: () {
                     Navigator.pop(ctx);
-                    _downloadAndInstall(apkUrl);
+                    _downloadAndInstall(downloadUrl);
                   },
                   child: const Text('立即更新'),
                 ),
@@ -525,16 +532,12 @@ class _ProfilePageState extends State<ProfilePage> {
         } else {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已是最新版本')));
         }
-      } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('暂无可用更新')));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('检查更新失败: $e')));
     }
   }
 
-  /// Compare two version strings (e.g. "1.0.1" vs "1.0.0")
-  /// Returns positive if v1 > v2, negative if v1 < v2, 0 if equal
   int _compareVersions(String v1, String v2) {
     final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
@@ -548,31 +551,63 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _downloadAndInstall(String apkUrl) async {
+    // iOS 或非 APK 链接：直接打开浏览器
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+    if (isIOS || (!apkUrl.endsWith('.apk') && !apkUrl.contains('/apk'))) {
+      String fullUrl = apkUrl;
+      if (!apkUrl.startsWith('http')) {
+        fullUrl = '${ApiConfig.baseUrl}$apkUrl';
+      }
+      final uri = Uri.parse(fullUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+
+    // Android APK：应用内下载并安装
     String fullUrl = apkUrl;
     if (!apkUrl.startsWith('http')) {
       fullUrl = '${ApiConfig.baseUrl}$apkUrl';
     }
-    final uri = Uri.parse(fullUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final savePath = '${dir.path}/update.apk';
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _ApkDownloadDialog(url: fullUrl, savePath: savePath),
+      );
+    } catch (e) {
+      debugPrint('[Update] Download error: $e');
+      final uri = Uri.parse(fullUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
     }
   }
 
   void _showWallet(BuildContext context) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const _WalletPage()));
+    Navigator.of(context).push(CupertinoPageRoute(builder: (_) => const _WalletPage()));
   }
 
   Future<void> _logout(BuildContext context, AuthProvider auth) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showCupertinoDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text('退出登录'),
-        content: const Text('确定要退出当前账号吗？'),
+        content: const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Text('确定要退出当前账号吗？'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('退出'),
           ),
         ],
@@ -588,7 +623,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-
 /// 钱包页面
 class _WalletPage extends StatefulWidget {
   const _WalletPage();
@@ -597,25 +631,18 @@ class _WalletPage extends StatefulWidget {
   State<_WalletPage> createState() => _WalletPageState();
 }
 
-class _WalletPageState extends State<_WalletPage> with SingleTickerProviderStateMixin {
+class _WalletPageState extends State<_WalletPage> {
   final _dio = ApiClient.instance.dio;
-  late TabController _tabController;
   double _balance = 0;
   List<Map<String, dynamic>> _logs = [];
   List<Map<String, dynamic>> _withdrawals = [];
   bool _isLoading = true;
+  int _selectedTab = 0;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadData();
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -628,22 +655,16 @@ class _WalletPageState extends State<_WalletPage> with SingleTickerProviderState
       if (logsRes.data['success'] == true) {
         final rawData = logsRes.data['data'];
         List<dynamic> items = [];
-        if (rawData is List) {
-          items = rawData;
-        } else if (rawData is Map) {
-          items = rawData['records'] ?? rawData['logs'] ?? rawData['items'] ?? [];
-        }
+        if (rawData is List) { items = rawData; }
+        else if (rawData is Map) { items = rawData['records'] ?? rawData['logs'] ?? rawData['items'] ?? []; }
         _logs = items.whereType<Map<String, dynamic>>().toList();
       }
       final wdRes = await _dio.get('/user/withdrawal/list');
       if (wdRes.data['success'] == true) {
         final rawData = wdRes.data['data'];
         List<dynamic> items = [];
-        if (rawData is List) {
-          items = rawData;
-        } else if (rawData is Map) {
-          items = rawData['records'] ?? rawData['list'] ?? rawData['items'] ?? [];
-        }
+        if (rawData is List) { items = rawData; }
+        else if (rawData is Map) { items = rawData['records'] ?? rawData['list'] ?? rawData['items'] ?? []; }
         _withdrawals = items.whereType<Map<String, dynamic>>().toList();
       }
     } catch (_) {}
@@ -657,84 +678,69 @@ class _WalletPageState extends State<_WalletPage> with SingleTickerProviderState
     return Scaffold(
       appBar: AppBar(title: const Text('我的钱包')),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: Column(
-                children: [
-                  // 余额卡片
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF7C5CFC), Color(0xFFA855F7)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('账户余额（元）', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                              const SizedBox(height: 6),
-                              Text('¥${_balance.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                        OutlinedButton(
-                          onPressed: () => _showWithdrawDialog(context),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white54),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                          ),
-                          child: const Text('提现'),
-                        ),
-                      ],
-                    ),
+          ? const Center(child: CupertinoActivityIndicator())
+          : Column(
+              children: [
+                // 余额卡片
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  // Tab 切换
-                  TabBar(
-                    controller: _tabController,
-                    labelColor: AppColors.primary,
-                    unselectedLabelColor: isDark ? Colors.white54 : Colors.black45,
-                    indicatorColor: AppColors.primary,
-                    tabs: const [
-                      Tab(text: '余额流水'),
-                      Tab(text: '提现记录'),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('账户余额（元）', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            const SizedBox(height: 6),
+                            Text('¥${_balance.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        onPressed: () => _showWithdrawDialog(context),
+                        child: const Text('提现', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      ),
                     ],
                   ),
-                  // Tab 内容
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildLogsList(isDark),
-                        _buildWithdrawalsList(isDark),
-                      ],
-                    ),
+                ),
+                // iOS 分段控制器
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: CupertinoSlidingSegmentedControl<int>(
+                    groupValue: _selectedTab,
+                    onValueChanged: (v) => setState(() => _selectedTab = v ?? 0),
+                    children: const {
+                      0: Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('余额流水')),
+                      1: Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Text('提现记录')),
+                    },
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _selectedTab == 0 ? _buildLogsList(isDark) : _buildWithdrawalsList(isDark),
+                ),
+              ],
             ),
     );
   }
 
   Widget _buildLogsList(bool isDark) {
     if (_logs.isEmpty) {
-      return Center(child: Text('暂无记录', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)));
+      return Center(child: Text('暂无记录', style: TextStyle(color: AppColors.systemGray)));
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _logs.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
+      separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
       itemBuilder: (_, index) {
         final log = _logs[index];
         final amount = (log['amount'] as num?)?.toDouble() ?? 0;
@@ -751,15 +757,15 @@ class _WalletPageState extends State<_WalletPage> with SingleTickerProviderState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(desc, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black87)),
+                    Text(desc, style: TextStyle(fontSize: 15, color: isDark ? Colors.white : AppColors.lightText)),
                     const SizedBox(height: 2),
-                    Text(_formatTime(time), style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38)),
+                    Text(_formatDateTime(time), style: TextStyle(fontSize: 12, color: AppColors.systemGray)),
                   ],
                 ),
               ),
               Text(
-                '${isIncome ? '+' : ''}${amount.toStringAsFixed(2)}',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: isIncome ? Colors.green : Colors.red),
+                '${isIncome ? '+' : '-'}¥${amount.abs().toStringAsFixed(2)}',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isIncome ? AppColors.success : AppColors.error),
               ),
             ],
           ),
@@ -770,32 +776,17 @@ class _WalletPageState extends State<_WalletPage> with SingleTickerProviderState
 
   Widget _buildWithdrawalsList(bool isDark) {
     if (_withdrawals.isEmpty) {
-      return Center(child: Text('暂无提现记录', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38)));
+      return Center(child: Text('暂无记录', style: TextStyle(color: AppColors.systemGray)));
     }
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _withdrawals.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? Colors.white12 : Colors.black12),
+      separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
       itemBuilder: (_, index) {
         final wd = _withdrawals[index];
         final amount = (wd['amount'] as num?)?.toDouble() ?? 0;
-        final status = (wd['status'] ?? 'pending').toString();
+        final status = (wd['status'] ?? '').toString();
         final time = (wd['created_at'] ?? '').toString();
-
-        String statusText;
-        Color statusColor;
-        final statusInt = int.tryParse(status) ?? -1;
-        switch (statusInt) {
-          case 1: statusText = '已批准'; statusColor = Colors.green; break;
-          case 2: statusText = '已拒绝'; statusColor = Colors.red; break;
-          case 0: statusText = '待审核'; statusColor = Colors.orange; break;
-          default:
-            switch (status) {
-              case 'approved': statusText = '已批准'; statusColor = Colors.green; break;
-              case 'rejected': statusText = '已拒绝'; statusColor = Colors.red; break;
-              default: statusText = '待审核'; statusColor = Colors.orange; break;
-            }
-        }
 
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -805,20 +796,13 @@ class _WalletPageState extends State<_WalletPage> with SingleTickerProviderState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('提现 ¥${amount.toStringAsFixed(2)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black87)),
+                    Text('提现 ¥${amount.toStringAsFixed(2)}', style: TextStyle(fontSize: 15, color: isDark ? Colors.white : AppColors.lightText)),
                     const SizedBox(height: 2),
-                    Text(_formatTime(time), style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38)),
+                    Text(_formatDateTime(time), style: TextStyle(fontSize: 12, color: AppColors.systemGray)),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusColor.withAlpha(25),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(statusText, style: TextStyle(fontSize: 12, color: statusColor, fontWeight: FontWeight.w500)),
-              ),
+              Text(_getStatusLabel(status), style: TextStyle(fontSize: 13, color: _getStatusColor(status))),
             ],
           ),
         );
@@ -826,73 +810,163 @@ class _WalletPageState extends State<_WalletPage> with SingleTickerProviderState
     );
   }
 
+  String _getTypeLabel(String type) {
+    switch (type) {
+      case 'recharge': return '充值';
+      case 'send_red_packet': return '发红包';
+      case 'grab_red_packet': return '收红包';
+      case 'refund_red_packet': return '红包退款';
+      case 'withdrawal': return '提现';
+      case 'withdrawal_refund': return '提现退款';
+      default: return type;
+    }
+  }
+
+  String _getStatusLabel(String status) {
+    switch (status) {
+      case 'pending': return '处理中';
+      case 'approved': return '已通过';
+      case 'rejected': return '已拒绝';
+      case 'completed': return '已完成';
+      default: return status;
+    }
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'pending': return AppColors.warning;
+      case 'approved': case 'completed': return AppColors.success;
+      case 'rejected': return AppColors.error;
+      default: return AppColors.systemGray;
+    }
+  }
+
+  String _formatDateTime(String timeStr) {
+    try {
+      final dt = DateTime.parse(timeStr);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return timeStr;
+    }
+  }
+
   void _showWithdrawDialog(BuildContext context) {
     final amountCtrl = TextEditingController();
+    final accountCtrl = TextEditingController();
 
-    showDialog(
+    showCupertinoDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('申请提现'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('可提现余额: ¥${_balance.toStringAsFixed(2)}', style: TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 12),
-            TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: '提现金额', prefixText: '¥')),
-          ],
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('提现'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              CupertinoTextField(controller: amountCtrl, placeholder: '提现金额', keyboardType: TextInputType.number, padding: const EdgeInsets.all(12)),
+              const SizedBox(height: 8),
+              CupertinoTextField(controller: accountCtrl, placeholder: '收款账号', padding: const EdgeInsets.all(12)),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () async {
-              final amount = double.tryParse(amountCtrl.text);
-              if (amount == null || amount <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入有效金额')));
-                return;
-              }
-              if (amount > _balance) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('余额不足')));
-                return;
-              }
+              final amount = double.tryParse(amountCtrl.text) ?? 0;
+              if (amount <= 0) return;
               Navigator.pop(ctx);
               try {
-                final res = await _dio.post('/user/withdrawal', data: {'amount': amount});
-                if (res.data['success'] == true && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('提现申请已提交')));
-                  _loadData();
-                } else if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.data['message'] ?? '提现失败')));
-                }
+                await _dio.post('/user/withdrawal', data: {'amount': amount, 'account': accountCtrl.text});
+                _loadData();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('提现申请已提交')));
               } catch (_) {
                 if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('提现失败')));
               }
             },
-            child: const Text('确认提现'),
+            child: const Text('确定'),
           ),
         ],
       ),
     );
   }
+}
 
-  String _getTypeLabel(String type) {
-    const map = {
-      'recharge': '充值',
-      'send_red_packet': '发红包',
-      'grab_red_packet': '收红包',
-      'refund_red_packet': '红包退回',
-      'withdrawal': '提现',
-      'withdrawal_refund': '提现退回',
-    };
-    return map[type] ?? type;
+/// APK 下载进度对话框
+class _ApkDownloadDialog extends StatefulWidget {
+  final String url;
+  final String savePath;
+
+  const _ApkDownloadDialog({required this.url, required this.savePath});
+
+  @override
+  State<_ApkDownloadDialog> createState() => _ApkDownloadDialogState();
+}
+
+class _ApkDownloadDialogState extends State<_ApkDownloadDialog> {
+  double _progress = 0;
+  bool _downloading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDownload();
   }
 
-  String _formatTime(String timeStr) {
-    if (timeStr.isEmpty) return '';
+  Future<void> _startDownload() async {
     try {
-      final time = DateTime.parse(timeStr);
-      return '${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return '';
+      final d = dio_pkg.Dio();
+      await d.download(
+        widget.url,
+        widget.savePath,
+        onReceiveProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() => _progress = received / total);
+          }
+        },
+      );
+      if (!mounted) return;
+      setState(() => _downloading = false);
+      final result = await OpenFilex.open(widget.savePath, type: 'application/vnd.android.package-archive');
+      if (result.type != ResultType.done && mounted) {
+        setState(() => _error = '安装失败: ${result.message}');
+      } else if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _error = '下载失败: $e';
+        });
+      }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_error != null ? '更新失败' : '正在下载更新'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_error != null)
+            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13))
+          else ...[
+            LinearProgressIndicator(value: _downloading ? _progress : 1.0),
+            const SizedBox(height: 12),
+            Text('${(_progress * 100).toStringAsFixed(0)}%'),
+          ],
+        ],
+      ),
+      actions: [
+        if (_error != null)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+      ],
+    );
   }
 }

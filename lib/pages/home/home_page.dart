@@ -1,15 +1,22 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:dio/dio.dart' as dio_pkg;
+import 'package:open_filex/open_filex.dart';
 
 import '../../providers/conversation_provider.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_sound.dart';
 import '../../services/api/api_client.dart';
 import '../../config/api_config.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/in_app_notification.dart';
 import '../chat/conversation_list_page.dart';
 import '../contacts/contacts_page.dart';
@@ -25,7 +32,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _currentIndex = 0;
-  bool _wsConnected = true;
   bool _hasUpdate = false;
 
   final _pages = const [
@@ -42,17 +48,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 确保 WebSocket 连接
       WebSocketService.instance.connect();
-      _wsConnected = WebSocketService.instance.isConnected;
-      // 加载会话列表
       context.read<ConversationProvider>().init();
-      // 监听 WebSocket 重连，重连后刷新数据
       _wsConnectionSub = WebSocketService.instance.connectionStream.listen((connected) {
         if (!mounted) return;
-        setState(() => _wsConnected = connected);
         if (connected) {
-          // 重连成功，刷新会话列表
           Future.delayed(const Duration(milliseconds: 500), () {
             if (!mounted) return;
             try {
@@ -61,7 +61,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           });
         }
       });
-      // 监听新消息弹窗通知
       WebSocketService.instance.on('message', _showMessageNotification);
       WebSocketService.instance.on('image', _showMessageNotification);
       WebSocketService.instance.on('images', _showMessageNotification);
@@ -70,8 +69,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       WebSocketService.instance.on('audio', _showMessageNotification);
       WebSocketService.instance.on('file', _showMessageNotification);
       WebSocketService.instance.on('group_message', _showGroupMessageNotification);
-
-      // 检查 Android 版本更新
       _checkForUpdate();
     });
   }
@@ -94,7 +91,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // 从后台恢复，重新连接 WebSocket
       if (!WebSocketService.instance.isConnected) {
         WebSocketService.instance.connect();
       }
@@ -106,16 +102,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final provider = context.read<ConversationProvider>();
     final fromId = msg['from'] ?? msg['from_id'];
     if (fromId == null) return;
-
-    // 如果正在查看这个会话，不弹通知
     if (provider.activeFriendId == fromId) return;
-
-    // 静音会话不弹通知
     if (provider.isConversationMuted(fromId as int)) return;
 
     final senderName = msg['fromName'] ?? msg['from_name'] ?? '新消息';
     final content = _getMessagePreview(msg);
-    // 头像：优先用 WebSocket 消息里的，fallback 到会话列表里的好友头像
     String? avatar = msg['fromAvatar']?.toString() ?? msg['from_avatar']?.toString();
     if (avatar == null || avatar.isEmpty) {
       final conv = provider.conversations.firstWhere(
@@ -144,7 +135,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       },
     );
-    // 播放提示音
     NotificationSound.instance.play();
   }
 
@@ -153,17 +143,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final provider = context.read<ConversationProvider>();
     final groupId = msg['group_id'] ?? msg['to'];
     if (groupId == null) return;
-
-    // 如果正在查看这个群，不弹通知
     if (provider.activeGroupId == groupId) return;
-
-    // 静音会话不弹通知
     if (provider.isConversationMuted(groupId as int)) return;
 
     final groupName = msg['group_name'] ?? '群聊';
     final senderName = msg['fromName'] ?? msg['from_name'] ?? '';
     final content = _getMessagePreview(msg);
-    // 群头像：优先用 WebSocket 消息里的，fallback 到会话列表里的群头像
     String? avatar = msg['group_avatar']?.toString();
     if (avatar == null || avatar.isEmpty) {
       final conv = provider.conversations.firstWhere(
@@ -193,7 +178,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
       },
     );
-    // 播放提示音
     NotificationSound.instance.play();
   }
 
@@ -221,39 +205,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Check for Android app update silently on startup
   Future<void> _checkForUpdate() async {
     try {
-      debugPrint('[Update] Checking for update...');
       final dio = ApiClient.instance.dio;
-      final res = await dio.get('/android/config');
-      debugPrint('[Update] Response: ${res.data}');
+      // 根据平台选择不同的配置接口
+      final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+      final configPath = isIOS ? '/ios/config' : '/android/config';
+      final res = await dio.get(configPath);
       if (res.data?['success'] == true && res.data?['data'] != null) {
         final data = res.data['data'];
         final latestVersion = data['version']?.toString() ?? '';
-        final apkUrl = data['apk_url']?.toString() ?? '';
+        // 根据平台选择下载链接
+        final downloadUrl = isIOS
+            ? (data['download_url']?.toString() ?? '')
+            : (data['apk_url']?.toString() ?? '');
         final updateMessage = data['update_message']?.toString() ?? '';
         final forceUpdate = data['force_update'] == true;
 
-        if (latestVersion.isEmpty || apkUrl.isEmpty) {
-          debugPrint('[Update] No version or apk_url, skip');
-          return;
-        }
+        if (latestVersion.isEmpty || downloadUrl.isEmpty) return;
 
         final packageInfo = await PackageInfo.fromPlatform();
         final currentVersion = packageInfo.version;
-        debugPrint('[Update] latest=$latestVersion current=$currentVersion');
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           setState(() => _hasUpdate = true);
 
-          // Show update dialog only once per version (store dismissed version)
           final prefs = await SharedPreferences.getInstance();
           final dismissedVersion = prefs.getString('dismissed_update_version') ?? '';
-          debugPrint('[Update] dismissed=$dismissedVersion');
           if (dismissedVersion != latestVersion) {
             if (!mounted) return;
-            _showUpdateDialog(latestVersion, apkUrl, updateMessage, forceUpdate);
+            _showUpdateDialog(latestVersion, downloadUrl, updateMessage, forceUpdate);
           }
         }
       }
@@ -263,37 +244,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _showUpdateDialog(String latestVersion, String apkUrl, String updateMessage, bool forceUpdate) {
-    showDialog(
+    showCupertinoDialog(
       context: context,
       barrierDismissible: !forceUpdate,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => CupertinoAlertDialog(
         title: const Text('发现新版本'),
         content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 8),
             Text('最新版本: $latestVersion'),
-            const Text('当前版本: 1.0.0'),
             if (updateMessage.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              const Text('更新内容:', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(updateMessage),
+              const SizedBox(height: 8),
+              Text(updateMessage, style: const TextStyle(fontSize: 13)),
             ],
           ],
         ),
         actions: [
           if (!forceUpdate)
-            TextButton(
+            CupertinoDialogAction(
               onPressed: () async {
                 Navigator.pop(ctx);
-                // Mark this version as dismissed
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setString('dismissed_update_version', latestVersion);
               },
               child: const Text('稍后'),
             ),
-          TextButton(
+          CupertinoDialogAction(
+            isDefaultAction: true,
             onPressed: () {
               Navigator.pop(ctx);
               _launchApkUrl(apkUrl);
@@ -306,17 +283,47 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _launchApkUrl(String apkUrl) async {
+    // iOS 或非 APK 链接：直接打开浏览器
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+    if (isIOS || (!apkUrl.endsWith('.apk') && !apkUrl.contains('/apk'))) {
+      String fullUrl = apkUrl;
+      if (!apkUrl.startsWith('http')) {
+        fullUrl = '${ApiConfig.baseUrl}$apkUrl';
+      }
+      final uri = Uri.parse(fullUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+
+    // Android APK：应用内下载并安装
     String fullUrl = apkUrl;
     if (!apkUrl.startsWith('http')) {
       fullUrl = '${ApiConfig.baseUrl}$apkUrl';
     }
-    final uri = Uri.parse(fullUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final savePath = '${dir.path}/update.apk';
+
+      if (!mounted) return;
+      // 显示下载进度对话框
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _ApkDownloadDialog(url: fullUrl, savePath: savePath),
+      );
+    } catch (e) {
+      debugPrint('[Update] Download error: $e');
+      // 降级到浏览器下载
+      final uri = Uri.parse(fullUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
     }
   }
 
-  /// Compare two version strings (e.g. "1.0.1" vs "1.0.0")
   int _compareVersions(String v1, String v2) {
     final parts1 = v1.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final parts2 = v2.split('.').map((e) => int.tryParse(e) ?? 0).toList();
@@ -333,58 +340,157 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final convProvider = context.watch<ConversationProvider>();
     final unread = convProvider.totalUnread;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
-          type: BottomNavigationBarType.fixed,
-          elevation: 0,
-          items: [
-            BottomNavigationBarItem(
-              icon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10)),
-                child: const Icon(Icons.chat_bubble_outline_rounded),
-              ),
-              activeIcon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10)),
-                child: const Icon(Icons.chat_bubble_rounded),
-              ),
-              label: '消息',
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
+              width: 0.33,
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline_rounded),
-              activeIcon: Icon(Icons.people_rounded),
-              label: '通讯录',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.explore_outlined),
-              activeIcon: Icon(Icons.explore_rounded),
-              label: '发现',
-            ),
-            BottomNavigationBarItem(
-              icon: Badge(
-                isLabelVisible: _hasUpdate,
-                smallSize: 8,
-                child: const Icon(Icons.person_outline_rounded),
-              ),
-              activeIcon: Badge(
-                isLabelVisible: _hasUpdate,
-                smallSize: 8,
-                child: const Icon(Icons.person_rounded),
-              ),
-              label: '我的',
-            ),
-          ],
+          ),
         ),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: BottomNavigationBar(
+              currentIndex: _currentIndex,
+              onTap: (index) {
+                HapticFeedback.selectionClick();
+                setState(() => _currentIndex = index);
+              },
+              items: [
+                BottomNavigationBarItem(
+                  icon: Badge(
+                    isLabelVisible: unread > 0,
+                    label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                    backgroundColor: AppColors.error,
+                    child: const Icon(CupertinoIcons.chat_bubble),
+                  ),
+                  activeIcon: Badge(
+                    isLabelVisible: unread > 0,
+                    label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                    backgroundColor: AppColors.error,
+                    child: const Icon(CupertinoIcons.chat_bubble_fill),
+                  ),
+                  label: '消息',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.person_2),
+                  activeIcon: Icon(CupertinoIcons.person_2_fill),
+                  label: '通讯录',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(CupertinoIcons.compass),
+                  activeIcon: Icon(CupertinoIcons.compass_fill),
+                  label: '发现',
+                ),
+                BottomNavigationBarItem(
+                  icon: Badge(
+                    isLabelVisible: _hasUpdate,
+                    smallSize: 8,
+                    backgroundColor: AppColors.error,
+                    child: const Icon(CupertinoIcons.person),
+                  ),
+                  activeIcon: Badge(
+                    isLabelVisible: _hasUpdate,
+                    smallSize: 8,
+                    backgroundColor: AppColors.error,
+                    child: const Icon(CupertinoIcons.person_fill),
+                  ),
+                  label: '我的',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// APK 下载进度对话框
+class _ApkDownloadDialog extends StatefulWidget {
+  final String url;
+  final String savePath;
+
+  const _ApkDownloadDialog({required this.url, required this.savePath});
+
+  @override
+  State<_ApkDownloadDialog> createState() => _ApkDownloadDialogState();
+}
+
+class _ApkDownloadDialogState extends State<_ApkDownloadDialog> {
+  double _progress = 0;
+  bool _downloading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDownload();
+  }
+
+  Future<void> _startDownload() async {
+    try {
+      final d = dio_pkg.Dio();
+      await d.download(
+        widget.url,
+        widget.savePath,
+        onReceiveProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() => _progress = received / total);
+          }
+        },
+      );
+      if (!mounted) return;
+      setState(() => _downloading = false);
+      // 安装 APK
+      final result = await OpenFilex.open(widget.savePath, type: 'application/vnd.android.package-archive');
+      if (result.type != ResultType.done && mounted) {
+        setState(() => _error = '安装失败: ${result.message}');
+      } else if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _error = '下载失败: $e';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_error != null ? '更新失败' : '正在下载更新'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_error != null)
+            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 13))
+          else ...[
+            LinearProgressIndicator(value: _downloading ? _progress : 1.0),
+            const SizedBox(height: 12),
+            Text('${(_progress * 100).toStringAsFixed(0)}%'),
+          ],
+        ],
+      ),
+      actions: [
+        if (_error != null)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+      ],
     );
   }
 }
