@@ -1,7 +1,7 @@
 ﻿name: liaoya_app
 description: "æ´½èŠ - å³æ—¶é€šè®¯App"
 publish_to: 'none'
-version: 2.0.2+2
+version: 2.0.1+2
 
 environment:
   sdk: ^3.7.2
