@@ -1745,6 +1745,14 @@ class _MessageBubble extends StatelessWidget {
     if (!fullUrl.startsWith('http')) {
       fullUrl = '${ApiConfig.baseUrl}$fullUrl';
     }
+
+    // 优先使用缩略图显示
+    final thumbnail = message['thumbnail'] as String? ?? '';
+    String displayUrl = fullUrl;
+    if (thumbnail.isNotEmpty) {
+      displayUrl = thumbnail.startsWith('http') ? thumbnail : '${ApiConfig.baseUrl}$thumbnail';
+    }
+
     final width = (message['image_width'] as int?) ?? 0;
     final height = (message['image_height'] as int?) ?? 0;
 
@@ -1767,7 +1775,7 @@ class _MessageBubble extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: CachedNetworkImage(
-          imageUrl: fullUrl,
+          imageUrl: displayUrl,
           width: displayWidth,
           height: displayHeight,
           fit: BoxFit.cover,

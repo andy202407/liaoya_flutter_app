@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -74,61 +75,107 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = auth.user ?? _localUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('我的')),
-      body: ListView(
-        children: [
-          const SizedBox(height: 8),
-          // 用户信息卡片 - iOS 风格
-          _buildUserCard(context, auth, user, isDark),
-          const SizedBox(height: 24),
-
-          // 账号信息
-          _buildSectionHeader('账号信息', isDark),
-          _buildGroupedList(context, isDark, [
-            _buildIOSItem(context, CupertinoIcons.creditcard, '我的钱包', isDark, onTap: () => _showWallet(context)),
-            _buildIOSItem(context, CupertinoIcons.lock, '修改密码', isDark, onTap: () => _showChangePassword(context)),
-          ]),
-
-          const SizedBox(height: 24),
-
-          // 应用偏好
-          _buildSectionHeader('应用偏好', isDark),
-          _buildGroupedList(context, isDark, [
-            _buildIOSSwitchItem(context, CupertinoIcons.moon, '深色模式', isDark,
-              value: theme.isDark,
-              onChanged: (_) => theme.toggleTheme(),
-            ),
-            _buildIOSItem(context, CupertinoIcons.trash, '清除缓存', isDark, onTap: () => _clearCache(context)),
-            _buildIOSItem(context, CupertinoIcons.arrow_down_circle, '检查更新', isDark,
-              trailing: _hasUpdate ? _buildNewBadge() : null,
-              onTap: () => _checkUpdate(context),
-            ),
-            _buildVersionItem(context, isDark),
-          ]),
-
-          const SizedBox(height: 40),
-
-          // 退出按钮 - iOS 风格
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkCard : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: CupertinoButton(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                onPressed: () => _logout(context, auth),
-                child: const Center(
-                  child: Text(
-                    '退出登录',
-                    style: TextStyle(color: AppColors.error, fontSize: 17),
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            floating: false,
+            toolbarHeight: 52,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            flexibleSpace: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRect(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                    child: Container(color: Colors.transparent),
                   ),
                 ),
+                Container(
+                  color: isDark
+                      ? AppColors.darkBg.withValues(alpha: 0.60)
+                      : Colors.white.withValues(alpha: 0.65),
+                ),
+              ],
+            ),
+            title: Text(
+              '我的',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+            ),
+            centerTitle: true,
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  // 用户信息卡片 - 渐变背景
+                  _buildUserCard(context, auth, user, isDark),
+                  const SizedBox(height: 28),
+
+                  // 账号信息
+                  _buildSectionHeader('账号信息', isDark),
+                  const SizedBox(height: 8),
+                  _buildGroupedList(context, isDark, [
+                    _buildIOSItem(context, CupertinoIcons.creditcard, '我的钱包', isDark, onTap: () => _showWallet(context)),
+                    _buildIOSItem(context, CupertinoIcons.lock, '修改密码', isDark, onTap: () => _showChangePassword(context), isLast: true),
+                  ]),
+
+                  const SizedBox(height: 28),
+
+                  // 应用偏好
+                  _buildSectionHeader('应用偏好', isDark),
+                  const SizedBox(height: 8),
+                  _buildGroupedList(context, isDark, [
+                    _buildIOSSwitchItem(context, CupertinoIcons.moon, '深色模式', isDark,
+                      value: theme.isDark,
+                      onChanged: (_) => theme.toggleTheme(),
+                    ),
+                    _buildIOSItem(context, CupertinoIcons.trash, '清除缓存', isDark, onTap: () => _clearCache(context)),
+                    _buildIOSItem(context, CupertinoIcons.arrow_down_circle, '检查更新', isDark,
+                      trailing: _hasUpdate ? _buildNewBadge() : null,
+                      onTap: () => _checkUpdate(context),
+                    ),
+                    _buildVersionItem(context, isDark),
+                  ]),
+
+                  const SizedBox(height: 36),
+
+                  // 退出按钮
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkCard : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.error.withAlpha(40),
+                        width: 1,
+                      ),
+                    ),
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      onPressed: () => _logout(context, auth),
+                      child: const Text(
+                        '退出登录',
+                        style: TextStyle(color: AppColors.error, fontSize: 16, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 60),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 40),
         ],
       ),
     );
@@ -136,13 +183,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildSectionHeader(String title, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 0, 16, 6),
+      padding: const EdgeInsets.only(left: 4),
       child: Text(
-        title.toUpperCase(),
+        title,
         style: TextStyle(
-          fontSize: 13,
-          color: AppColors.systemGray,
-          fontWeight: FontWeight.w400,
+          fontSize: 14,
+          color: isDark ? AppColors.darkTextSecondary : AppColors.systemGray,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -150,10 +198,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildGroupedList(BuildContext context, bool isDark, List<Widget> items) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withAlpha(40) : Colors.black.withAlpha(8),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(children: items),
     );
@@ -161,9 +215,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildNewBadge() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(8)),
-      child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFFFF6B6B), Color(0xFFEE5A24)]),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -174,11 +231,31 @@ class _ProfilePageState extends State<ProfilePage> {
     final userId = auth.userId ?? user?['id'];
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        gradient: isDark
+            ? const LinearGradient(
+                colors: [Color(0xFF2A2A3E), Color(0xFF1E1E2E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : const LinearGradient(
+                colors: [Color(0xFFF8F9FF), Color(0xFFEEF0FF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withAlpha(60) : AppColors.primary.withAlpha(15),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(
+          color: isDark ? Colors.white.withAlpha(10) : AppColors.primary.withAlpha(20),
+          width: 1,
+        ),
       ),
       child: CupertinoButton(
         padding: EdgeInsets.zero,
@@ -189,84 +266,104 @@ class _ProfilePageState extends State<ProfilePage> {
               onTap: () => _showAvatarPicker(context, auth),
               child: Stack(
                 children: [
-                  AvatarWidget(url: avatar, name: nickname, size: 60),
+                  AvatarWidget(url: avatar, name: nickname, size: 64),
                   Positioned(
                     right: 0,
                     bottom: 0,
                     child: Container(
-                      width: 20,
-                      height: 20,
+                      width: 22,
+                      height: 22,
                       decoration: BoxDecoration(
                         color: AppColors.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: isDark ? AppColors.darkCard : Colors.white, width: 2),
+                        border: Border.all(color: isDark ? const Color(0xFF2A2A3E) : const Color(0xFFF8F9FF), width: 2.5),
+                        boxShadow: [
+                          BoxShadow(color: AppColors.primary.withAlpha(60), blurRadius: 6, offset: const Offset(0, 2)),
+                        ],
                       ),
-                      child: const Icon(CupertinoIcons.camera, size: 10, color: Colors.white),
+                      child: const Icon(CupertinoIcons.camera, size: 11, color: Colors.white),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     nickname,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: isDark ? Colors.white : AppColors.lightText),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: isDark ? Colors.white : AppColors.lightText),
                   ),
                   const SizedBox(height: 4),
-                  Text('@$username', style: TextStyle(fontSize: 14, color: AppColors.systemGray)),
-                  const SizedBox(height: 2),
+                  Text('@$username', style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkTextSecondary : AppColors.systemGray)),
+                  const SizedBox(height: 4),
                   GestureDetector(
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: '$userId'));
                       HapticFeedback.lightImpact();
                     },
-                    child: Row(
-                      children: [
-                        Text('ID: $userId', style: TextStyle(fontSize: 12, color: AppColors.systemGray2)),
-                        const SizedBox(width: 4),
-                        Icon(CupertinoIcons.doc_on_doc, size: 11, color: AppColors.systemGray2),
-                      ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withAlpha(10) : AppColors.primary.withAlpha(10),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('ID: $userId', style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray2)),
+                          const SizedBox(width: 4),
+                          Icon(CupertinoIcons.doc_on_doc, size: 11, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray2),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(CupertinoIcons.chevron_right, size: 16, color: AppColors.systemGray3),
+            Icon(CupertinoIcons.chevron_right, size: 16, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray3),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildIOSItem(BuildContext context, IconData icon, String title, bool isDark, {VoidCallback? onTap, Widget? trailing}) {
+  Widget _buildIOSItem(BuildContext context, IconData icon, String title, bool isDark, {VoidCallback? onTap, Widget? trailing, bool isLast = false}) {
     return Column(
       children: [
         CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Row(
               children: [
-                Icon(icon, color: AppColors.primary, size: 22),
-                const SizedBox(width: 12),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.primary.withAlpha(20) : AppColors.primary.withAlpha(12),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(icon, color: AppColors.primary, size: 18),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Text(title, style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText)),
                 ),
                 if (trailing != null) ...[trailing, const SizedBox(width: 8)],
-                Icon(CupertinoIcons.chevron_right, size: 14, color: AppColors.systemGray3),
+                Icon(CupertinoIcons.chevron_right, size: 14, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray3),
               ],
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(left: 50),
-          child: Divider(height: 0.33, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
-        ),
+        if (!isLast)
+          Padding(
+            padding: const EdgeInsets.only(left: 66),
+            child: Divider(height: 0.5, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+          ),
       ],
     );
   }
@@ -275,25 +372,33 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           child: Row(
             children: [
-              Icon(icon, color: AppColors.primary, size: 22),
-              const SizedBox(width: 12),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.primary.withAlpha(20) : AppColors.primary.withAlpha(12),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(icon, color: AppColors.primary, size: 18),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text(title, style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText)),
               ),
               CupertinoSwitch(
                 value: value,
                 onChanged: onChanged,
-                activeTrackColor: AppColors.success,
+                activeTrackColor: AppColors.primary,
               ),
             ],
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(left: 50),
-          child: Divider(height: 0.33, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
+          padding: const EdgeInsets.only(left: 66),
+          child: Divider(height: 0.5, color: isDark ? AppColors.darkDivider : AppColors.lightDivider),
         ),
       ],
     );
@@ -305,15 +410,23 @@ class _ProfilePageState extends State<ProfilePage> {
       builder: (context, snapshot) {
         final version = snapshot.data?.version ?? '...';
         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           child: Row(
             children: [
-              Icon(CupertinoIcons.info, color: AppColors.primary, size: 22),
-              const SizedBox(width: 12),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.primary.withAlpha(20) : AppColors.primary.withAlpha(12),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(CupertinoIcons.info, color: AppColors.primary, size: 18),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Text('当前版本', style: TextStyle(fontSize: 16, color: isDark ? AppColors.darkText : AppColors.lightText)),
               ),
-              Text(version, style: TextStyle(fontSize: 15, color: AppColors.systemGray)),
+              Text(version, style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray)),
             ],
           ),
         );

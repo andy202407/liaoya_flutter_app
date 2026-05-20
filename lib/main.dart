@@ -56,6 +56,12 @@ class LiaoyaApp extends StatelessWidget {
             themeMode: themeProvider.themeMode,
             // iOS 风格滚动行为
             scrollBehavior: const CupertinoScrollBehavior(),
+            builder: (context, child) {
+              return DefaultTextStyle(
+                style: TextStyle(fontFamily: 'MiSans'),
+                child: child!,
+              );
+            },
             initialRoute: '/splash',
             routes: {
               '/splash': (_) => const SplashPage(),

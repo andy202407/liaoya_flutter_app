@@ -76,6 +76,19 @@ class ConversationProvider extends ChangeNotifier {
     loadConversations();
   }
 
+  /// 强制刷新，即使正在加载中也会等待完成后重新加载
+  Future<void> forceRefresh() async {
+    if (_isLoading) {
+      _pendingRefresh = true;
+      // 等待当前加载完成
+      while (_isLoading) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      return;
+    }
+    await loadConversations();
+  }
+
   Future<void> loadConversations({bool loadMore = false}) async {
     if (_isLoading) {
       _pendingRefresh = true;

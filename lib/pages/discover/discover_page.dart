@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -45,12 +46,45 @@ class _DiscoverPageState extends State<DiscoverPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('发现')),
       body: _isLoading
           ? const Center(child: CupertinoActivityIndicator())
           : CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
+                SliverAppBar(
+                  pinned: true,
+                  floating: false,
+                  toolbarHeight: 52,
+                  backgroundColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  elevation: 0,
+                  scrolledUnderElevation: 0,
+                  flexibleSpace: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ClipRect(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                          child: Container(color: Colors.transparent),
+                        ),
+                      ),
+                      Container(
+                        color: isDark
+                            ? AppColors.darkBg.withValues(alpha: 0.60)
+                            : Colors.white.withValues(alpha: 0.65),
+                      ),
+                    ],
+                  ),
+                  title: Text(
+                    '发现',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.darkText : AppColors.lightText,
+                    ),
+                  ),
+                  centerTitle: true,
+                ),
                 CupertinoSliverRefreshControl(
                   onRefresh: _loadMenu,
                 ),

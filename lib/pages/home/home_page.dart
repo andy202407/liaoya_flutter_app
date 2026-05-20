@@ -348,10 +348,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: Container(
-        color: isDark
-            ? AppColors.darkBg.withValues(alpha: 0.70)
-            : AppColors.lightBg.withValues(alpha: 0.70),
+      bottomNavigationBar: Padding(
         padding: EdgeInsets.only(
           left: 12,
           right: 12,
@@ -366,20 +363,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(32),
-                // 多层渐变模拟玻璃内部光影
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDark
-                      ? [
-                          const Color(0xFF3A3A3C).withValues(alpha: 0.55),
-                          const Color(0xFF2C2C2E).withValues(alpha: 0.50),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.72),
-                          const Color(0xFFF0F0F0).withValues(alpha: 0.58),
-                        ],
-                ),
+                color: isDark
+                    ? const Color(0xFF3A3A3C).withValues(alpha: 0.55)
+                    : Colors.white.withValues(alpha: 0.55),
                 // 白色边框 = 玻璃边缘高光
                 border: Border.all(
                   color: isDark

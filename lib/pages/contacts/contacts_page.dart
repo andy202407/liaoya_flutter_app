@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
@@ -27,23 +28,55 @@ class _ContactsPageState extends State<ContactsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<FriendProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('通讯录'),
-        actions: [
-          CupertinoButton(
-            padding: const EdgeInsets.only(right: 16),
-            onPressed: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const AddFriendPage())),
-            child: const Icon(CupertinoIcons.person_add, size: 22),
-          ),
-        ],
-      ),
-      body: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        slivers: [
+      body: Consumer<FriendProvider>(
+        builder: (context, provider, _) {
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              SliverAppBar(
+                pinned: true,
+                floating: false,
+                toolbarHeight: 52,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                flexibleSpace: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: Container(color: Colors.transparent),
+                      ),
+                    ),
+                    Container(
+                      color: isDark
+                          ? AppColors.darkBg.withValues(alpha: 0.60)
+                          : Colors.white.withValues(alpha: 0.65),
+                    ),
+                  ],
+                ),
+                title: Text(
+                  '通讯录',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                  ),
+                ),
+                centerTitle: true,
+                actions: [
+                  CupertinoButton(
+                    padding: const EdgeInsets.only(right: 16),
+                    onPressed: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const AddFriendPage())),
+                    child: Icon(CupertinoIcons.person_add, size: 22, color: isDark ? AppColors.darkText : AppColors.lightText),
+                  ),
+                ],
+              ),
           CupertinoSliverRefreshControl(
             onRefresh: () => provider.loadAll(),
           ),
@@ -126,7 +159,9 @@ class _ContactsPageState extends State<ContactsPage> {
                 childCount: provider.friends.length,
               ),
             ),
-        ],
+          ],
+        );
+        },
       ),
     );
   }

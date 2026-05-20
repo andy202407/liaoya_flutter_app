@@ -9,6 +9,7 @@ class AppTheme {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
+    fontFamily: 'MiSans',
     primaryColor: AppColors.primary,
     colorScheme: const ColorScheme.light(
       primary: AppColors.primary,
@@ -169,6 +170,7 @@ class AppTheme {
   static ThemeData darkTheme = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
+    fontFamily: 'MiSans',
     primaryColor: AppColors.primary,
     colorScheme: const ColorScheme.dark(
       primary: AppColors.primary,
