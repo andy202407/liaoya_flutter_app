@@ -1669,18 +1669,19 @@ class _MessageBubble extends StatelessWidget {
     if (type == 'images') {
       // 多图消息：从 images JSON 数组取第一张
       final imageUrl = _getFirstImageUrl();
+      final imageThumbnail = _getFirstImageThumbnail();
       if (imageUrl.isNotEmpty) {
         if (content.isNotEmpty && !_isFileName(content)) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Builder(builder: (ctx) => _buildImageContent(ctx, imageUrl)),
+              Builder(builder: (ctx) => _buildImageContent(ctx, imageUrl, thumbnailOverride: imageThumbnail)),
               const SizedBox(height: 6),
               Text(content, style: AppTextStyles.chatMsg.copyWith(color: isMe ? Colors.white : (isDark ? AppColors.darkText : AppColors.lightText))),
             ],
           );
         }
-        return Builder(builder: (ctx) => _buildImageContent(ctx, imageUrl));
+        return Builder(builder: (ctx) => _buildImageContent(ctx, imageUrl, thumbnailOverride: imageThumbnail));
       }
       return Text('[图片]', style: TextStyle(color: isMe ? Colors.white70 : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)));
     }
@@ -1740,14 +1741,16 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildImageContent(BuildContext context, String fileUrl) {
+  Widget _buildImageContent(BuildContext context, String fileUrl, {String thumbnailOverride = ''}) {
     String fullUrl = fileUrl;
     if (!fullUrl.startsWith('http')) {
       fullUrl = '${ApiConfig.baseUrl}$fullUrl';
     }
 
     // 优先使用缩略图显示
-    final thumbnail = message['thumbnail'] as String? ?? '';
+    final thumbnail = thumbnailOverride.isNotEmpty
+        ? thumbnailOverride
+        : (message['thumbnail'] as String? ?? '');
     String displayUrl = fullUrl;
     if (thumbnail.isNotEmpty) {
       displayUrl = thumbnail.startsWith('http') ? thumbnail : '${ApiConfig.baseUrl}$thumbnail';
@@ -1875,6 +1878,31 @@ class _MessageBubble extends StatelessWidget {
         return (first['url'] ?? first['file_url'] ?? '').toString();
       }
       if (first is String) return first;
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// 从 images JSON 字段获取第一张图片的缩略图 URL
+  String _getFirstImageThumbnail() {
+    final images = message['images'];
+    if (images == null) return '';
+    try {
+      List<dynamic> list;
+      if (images is String) {
+        if (images.isEmpty) return '';
+        list = jsonDecode(images) as List<dynamic>;
+      } else if (images is List) {
+        list = images;
+      } else {
+        return '';
+      }
+      if (list.isEmpty) return '';
+      final first = list.first;
+      if (first is Map) {
+        return (first['thumbnail'] ?? '').toString();
+      }
       return '';
     } catch (_) {
       return '';

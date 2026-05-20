@@ -90,6 +90,7 @@ class AvatarWidget extends StatelessWidget {
             width: size,
             height: size,
             fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 200),
             placeholder: (_, __) => _buildPlaceholder(),
             errorWidget: (_, __, ___) => _buildPlaceholder(),
           ),
