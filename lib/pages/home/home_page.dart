@@ -343,71 +343,225 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
-              width: 0.33,
+        color: isDark
+            ? AppColors.darkBg.withValues(alpha: 0.70)
+            : AppColors.lightBg.withValues(alpha: 0.70),
+        padding: EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: MediaQuery.of(context).padding.bottom + 6,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+            child: Container(
+              height: 56,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(32),
+                // 多层渐变模拟玻璃内部光影
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [
+                          const Color(0xFF3A3A3C).withValues(alpha: 0.55),
+                          const Color(0xFF2C2C2E).withValues(alpha: 0.50),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.72),
+                          const Color(0xFFF0F0F0).withValues(alpha: 0.58),
+                        ],
+                ),
+                // 白色边框 = 玻璃边缘高光
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.white.withValues(alpha: 0.90),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  // 外阴影 - 悬浮感
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.07),
+                    blurRadius: 24,
+                    offset: const Offset(0, 6),
+                    spreadRadius: -4,
+                  ),
+                  // 底部柔和阴影
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // 顶部高光条
+                  Positioned(
+                    top: 0,
+                    left: 20,
+                    right: 20,
+                    child: Container(
+                      height: 1,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.white.withValues(alpha: 0.0),
+                            Colors.white.withValues(alpha: isDark ? 0.15 : 0.50),
+                            Colors.white.withValues(alpha: 0.0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 水珠背景层 - 精确等分定位
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final totalWidth = constraints.maxWidth;
+                      final itemWidth = totalWidth / 4;
+                      const dropPadding = 8.0;
+                      final dropWidth = itemWidth - dropPadding * 2;
+                      final left = _currentIndex * itemWidth + dropPadding;
+
+                      return Stack(
+                        children: [
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            left: left,
+                            top: 5,
+                            child: Container(
+                              width: dropWidth,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : const Color(0xFFE4E4E4).withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(23),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  // Tab 内容
+                  Row(
+                    children: [
+                      _buildTabItem(
+                        index: 0,
+                        icon: Badge(
+                          isLabelVisible: unread > 0,
+                          label: Text(unread > 99 ? '99+' : '$unread',
+                              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+                          backgroundColor: AppColors.error,
+                          child: const Icon(CupertinoIcons.chat_bubble),
+                        ),
+                        activeIcon: Badge(
+                          isLabelVisible: unread > 0,
+                          label: Text(unread > 99 ? '99+' : '$unread',
+                              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+                          backgroundColor: AppColors.error,
+                          child: const Icon(CupertinoIcons.chat_bubble_fill),
+                        ),
+                        label: '消息',
+                      ),
+                      _buildTabItem(
+                        index: 1,
+                        icon: const Icon(CupertinoIcons.person_2),
+                        activeIcon: const Icon(CupertinoIcons.person_2_fill),
+                        label: '通讯录',
+                      ),
+                      _buildTabItem(
+                        index: 2,
+                        icon: const Icon(CupertinoIcons.compass),
+                        activeIcon: const Icon(CupertinoIcons.compass_fill),
+                        label: '发现',
+                      ),
+                      _buildTabItem(
+                        index: 3,
+                        icon: Badge(
+                          isLabelVisible: _hasUpdate,
+                          smallSize: 8,
+                          backgroundColor: AppColors.error,
+                          child: const Icon(CupertinoIcons.person),
+                        ),
+                        activeIcon: Badge(
+                          isLabelVisible: _hasUpdate,
+                          smallSize: 8,
+                          backgroundColor: AppColors.error,
+                          child: const Icon(CupertinoIcons.person_fill),
+                        ),
+                        label: '我的',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        child: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: BottomNavigationBar(
-              currentIndex: _currentIndex,
-              onTap: (index) {
-                HapticFeedback.selectionClick();
-                setState(() => _currentIndex = index);
-              },
-              items: [
-                BottomNavigationBarItem(
-                  icon: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10, color: Colors.white)),
-                    backgroundColor: AppColors.error,
-                    child: const Icon(CupertinoIcons.chat_bubble),
-                  ),
-                  activeIcon: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(unread > 99 ? '99+' : '$unread', style: const TextStyle(fontSize: 10, color: Colors.white)),
-                    backgroundColor: AppColors.error,
-                    child: const Icon(CupertinoIcons.chat_bubble_fill),
-                  ),
-                  label: '消息',
+      ),
+    );
+  }
+
+  /// 切换 tab
+  void _switchTab(int index) {
+    if (index == _currentIndex) return;
+    HapticFeedback.selectionClick();
+    setState(() => _currentIndex = index);
+  }
+
+  Widget _buildTabItem({
+    required int index,
+    required Widget icon,
+    required Widget activeIcon,
+    required String label,
+  }) {
+    final isSelected = _currentIndex == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _switchTab(index),
+        child: SizedBox(
+          height: 56,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconTheme(
+                data: IconThemeData(
+                  color: isSelected
+                      ? (isDark ? Colors.white : const Color(0xFF1A1A1A))
+                      : (isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
+                  size: 24,
                 ),
-                const BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.person_2),
-                  activeIcon: Icon(CupertinoIcons.person_2_fill),
-                  label: '通讯录',
+                child: isSelected ? activeIcon : icon,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected
+                      ? (isDark ? Colors.white : const Color(0xFF1A1A1A))
+                      : (isDark ? AppColors.darkTextTertiary : AppColors.lightTextTertiary),
                 ),
-                const BottomNavigationBarItem(
-                  icon: Icon(CupertinoIcons.compass),
-                  activeIcon: Icon(CupertinoIcons.compass_fill),
-                  label: '发现',
-                ),
-                BottomNavigationBarItem(
-                  icon: Badge(
-                    isLabelVisible: _hasUpdate,
-                    smallSize: 8,
-                    backgroundColor: AppColors.error,
-                    child: const Icon(CupertinoIcons.person),
-                  ),
-                  activeIcon: Badge(
-                    isLabelVisible: _hasUpdate,
-                    smallSize: 8,
-                    backgroundColor: AppColors.error,
-                    child: const Icon(CupertinoIcons.person_fill),
-                  ),
-                  label: '我的',
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
