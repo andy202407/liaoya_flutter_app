@@ -6,6 +6,7 @@ import '../../services/api/api_client.dart';
 import '../../theme/app_colors.dart';
 import 'check_in_page.dart';
 import 'official_account_list_page.dart';
+import 'live_stream_list_page.dart';
 
 class DiscoverPage extends StatefulWidget {
   const DiscoverPage({super.key});
@@ -189,6 +190,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
         break;
       case 'official':
         Navigator.push(context, CupertinoPageRoute(builder: (_) => const OfficialAccountListPage()));
+        break;
+      case 'sports':
+        Navigator.push(context, CupertinoPageRoute(builder: (_) => const LiveStreamListPage()));
         break;
       default:
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,7 +1,7 @@
 class ApiConfig {
   // 开发环境（使用公网地址，方便手机真机调试）
-  static const String devBaseUrl = 'https://chat.ql52.com';
-  static const String devWsUrl = 'wss://chat.ql52.com';
+  static const String devBaseUrl = 'https://chat.ql57.com';
+  static const String devWsUrl = 'wss://chat.ql57.com';
 
   // 生产环境
   static const String prodBaseUrl = 'https://chat.ql52.com';
