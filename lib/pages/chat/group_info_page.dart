@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../services/api/api_client.dart';
-import '../../config/api_config.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/avatar_widget.dart';
 
@@ -46,7 +45,20 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('群信息')),
+      appBar: AppBar(
+        title: const Text('群信息'),
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'clear') _confirmClearMessages(context);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'clear', child: Text('清空消息')),
+            ],
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -84,6 +96,35 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                 ..._members.map((member) => _buildMemberTile(member, isDark)),
               ],
             ),
+    );
+  }
+
+  void _confirmClearMessages(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空消息'),
+        content: const Text('确定要清空所有群消息吗？\n清空后，您将无法看到之前的消息，但仍可收到新消息。此操作仅对您生效。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final res = await _dio.delete('/groups/${widget.groupId}/messages');
+                if (res.data['success'] == true && mounted) {
+                  Navigator.pop(context, 'cleared'); // 返回 chat_page 并通知清空
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('清空失败')));
+                }
+              }
+            },
+            child: const Text('确定清空', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 
