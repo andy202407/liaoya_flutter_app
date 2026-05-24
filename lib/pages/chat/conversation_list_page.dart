@@ -11,6 +11,7 @@ import '../../services/websocket_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/time_utils.dart';
 import '../../widgets/avatar_widget.dart';
 import '../contacts/add_friend_page.dart';
 import '../contacts/scan_join_group_page.dart';
@@ -696,14 +697,16 @@ class _ConversationTileState extends State<_ConversationTile> with SingleTickerP
   String _formatTime(String? timeStr) {
     if (timeStr == null) return '';
     try {
-      final time = DateTime.parse(timeStr);
-      final now = DateTime.now();
-      final diff = now.difference(time);
-      if (diff.inDays == 0) {
+      final time = TimeUtils.parseAsShanghai(timeStr);
+      final now = TimeUtils.shanghaiNow();
+      final timeDate = DateTime.utc(time.year, time.month, time.day);
+      final nowDate = DateTime.utc(now.year, now.month, now.day);
+      final diffDays = nowDate.difference(timeDate).inDays;
+      if (diffDays == 0) {
         return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-      } else if (diff.inDays == 1) {
+      } else if (diffDays == 1) {
         return '昨天';
-      } else if (diff.inDays < 7) {
+      } else if (diffDays < 7) {
         const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
         return weekdays[time.weekday - 1];
       } else {
