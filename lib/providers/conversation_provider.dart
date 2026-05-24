@@ -35,8 +35,14 @@ class ConversationProvider extends ChangeNotifier {
   int get totalUnread {
     int count = 0;
     for (final conv in _conversations) {
-      if (conv['muted'] == true) continue; // 静音会话不计入总未读
-      count += (conv['unread_count'] as int?) ?? 0;
+      if (conv['muted'] == true) {
+        // Muted groups: only count @mentions toward badge
+        if (conv['type'] == 2) {
+          count += (conv['mention_unread_count'] as int?) ?? 0;
+        }
+      } else {
+        count += (conv['unread_count'] as int?) ?? 0;
+      }
     }
     return count;
   }
@@ -341,6 +347,19 @@ class ConversationProvider extends ChangeNotifier {
     if (index != -1) {
       _activeConversationId = _conversations[index]['id'] as int?;
       _conversations[index] = {..._conversations[index], 'unread_count': 0};
+      notifyListeners();
+    }
+  }
+
+  /// Clear mention badge when entering a group chat.
+  /// Called from ChatPage._markAsRead() alongside existing unread clearing.
+  void clearMentionBadge(int groupId) {
+    final index = _conversations.indexWhere((c) {
+      final gId = c['target_id'] ?? c['group']?['id'];
+      return c['type'] == 2 && gId == groupId;
+    });
+    if (index != -1) {
+      _conversations[index] = {..._conversations[index], 'mention_unread_count': 0};
       notifyListeners();
     }
   }
