@@ -20,6 +20,12 @@ import '../../widgets/avatar_widget.dart';
 import '../../services/websocket_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
+import '../../utils/message_navigation_helper.dart';
+import '../../utils/mention_input_controller.dart';
+import '../../utils/mention_rich_text.dart';
+import '../../widgets/member_picker_sheet.dart';
+import '../../providers/mention_provider.dart';
+import '../../widgets/mention_nav_widget.dart';
 import 'package:provider/provider.dart';
 
 class ChatPage extends StatefulWidget {
@@ -36,6 +42,8 @@ class _ChatPageState extends State<ChatPage> {
   final _scrollController = ScrollController();
   final _dio = ApiClient.instance.dio;
   final _inputFocusNode = FocusNode();
+  final _navigationHelper = MessageNavigationHelper();
+  final _mentionController = MentionInputController();
   Timer? _carouselTimer;
   ConversationProvider? _convProvider;
 
@@ -48,6 +56,10 @@ class _ChatPageState extends State<ChatPage> {
   bool _hasMore = true;
   bool _loadingMore = false;
   int _groupMemberCount = 0; // 群成员总数
+
+  // 滚动到底部按钮 & 新消息提示
+  bool _showScrollToBottom = false; // 是否显示滚动到底部按钮
+  int _newMsgCount = 0; // 不在底部时收到的新消息数量
 
   // 禁言状态
   bool _isMuted = false; // 当前用户是否被禁言
@@ -110,6 +122,7 @@ class _ChatPageState extends State<ChatPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _markAsRead());
     _scrollController.addListener(_onScroll);
     _inputFocusNode.addListener(_onInputFocus);
+    _messageController.addListener(_onTextChanged);
     // 监听实时消息
     WebSocketService.instance.on('message', _onWsMessage);
     WebSocketService.instance.on('image', _onWsMessage);
@@ -133,6 +146,20 @@ class _ChatPageState extends State<ChatPage> {
       _loadAnnouncement();
       _loadGroupMuteStatus();
     }
+    // 初始化@消息导航
+    if (_isGroup && _groupId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final mentionProvider = context.read<MentionProvider>();
+        mentionProvider.init();
+        mentionProvider.fetchUnreadMentions(_groupId!).then((_) {
+          // 拿到数据后再清除会话列表badge
+          if (mounted) {
+            context.read<ConversationProvider>().clearMentionBadge(_groupId!);
+          }
+        });
+      });
+    }
   }
 
   @override
@@ -140,6 +167,8 @@ class _ChatPageState extends State<ChatPage> {
     _messageController.dispose();
     _scrollController.dispose();
     _inputFocusNode.dispose();
+    _navigationHelper.dispose();
+    _mentionController.dispose();
     _carouselTimer?.cancel();
     _muteCheckTimer?.cancel();
     _typingTimer?.cancel();
@@ -376,6 +405,9 @@ class _ChatPageState extends State<ChatPage> {
     } else if (_groupId != null && _isGroup) {
       context.read<ConversationProvider>().markAsReadByGroupId(_groupId!);
     }
+    // 清除会话列表的@badge（但保留导航条，让用户可以跳转查看）
+    // 延迟到 fetchUnreadMentions 之后执行，避免时序问题
+    // badge 清除由 fetchUnreadMentions 完成后在下方 postFrameCallback 中处理
   }
 
   void _onInputFocus() {
@@ -453,6 +485,25 @@ class _ChatPageState extends State<ChatPage> {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 100) {
       _loadMoreMessages();
     }
+    // 检查是否在底部，控制滚动到底部按钮显示
+    _checkScrollPosition();
+  }
+
+  /// 检查滚动位置，更新滚动到底部按钮状态
+  void _checkScrollPosition() {
+    if (!_scrollController.hasClients) return;
+    // reverse 模式下，offset=0 是底部（最新消息），往上滚动 offset 增大
+    final distanceFromBottom = _scrollController.position.pixels;
+    final shouldShow = distanceFromBottom > 100;
+    if (shouldShow != _showScrollToBottom) {
+      setState(() {
+        _showScrollToBottom = shouldShow;
+        // 滚动到底部时清除新消息计数
+        if (!shouldShow) {
+          _newMsgCount = 0;
+        }
+      });
+    }
   }
 
   void _onWsMessage(Map<String, dynamic> msg) {
@@ -461,7 +512,12 @@ class _ChatPageState extends State<ChatPage> {
       debugPrint('[ChatPage] _onWsMessage: type=${msg['type']}, fromId=$fromId (${fromId.runtimeType}), _friendId=$_friendId (${_friendId.runtimeType}), match=${fromId == _friendId}');
       if (fromId != null && _friendId != null && '$fromId' == '$_friendId') {
         setState(() => _messages.insert(0, msg));
-        _scrollToBottom();
+        // 如果在底部，自动滚动；否则增加新消息计数
+        if (!_showScrollToBottom) {
+          _scrollToBottom();
+        } else {
+          setState(() => _newMsgCount++);
+        }
         _markAsRead();
       }
     }
@@ -472,7 +528,21 @@ class _ChatPageState extends State<ChatPage> {
       final groupId = msg['group_id'] ?? msg['to'];
       if (groupId != null && _groupId != null && '$groupId' == '$_groupId') {
         setState(() => _messages.insert(0, msg));
-        _scrollToBottom();
+        // 如果在底部，自动滚动；否则增加新消息计数
+        // 如果是自己发的消息，强制滚动到底部
+        final fromId = msg['from_id'] ?? msg['from'] ?? msg['from_user']?['id'];
+        final isMine = fromId != null && _currentUserId != null && '$fromId' == '$_currentUserId';
+        if (isMine || !_showScrollToBottom) {
+          if (_showScrollToBottom && isMine) {
+            setState(() {
+              _showScrollToBottom = false;
+              _newMsgCount = 0;
+            });
+          }
+          _scrollToBottom();
+        } else {
+          setState(() => _newMsgCount++);
+        }
         _markAsRead();
         // 检测禁言/解禁消息
         _checkMuteMessage(msg);
@@ -557,6 +627,100 @@ class _ChatPageState extends State<ChatPage> {
     _sendTypingTimer = Timer(const Duration(seconds: 2), () {
       _hasSentTyping = false;
     });
+  }
+
+  /// 检测@触发
+  void _onTextChanged() {
+    if (_isGroup && !_isInputDisabled) {
+      final text = _messageController.text;
+      final cursorPos = _messageController.selection.baseOffset;
+      if (cursorPos >= 0 && _mentionController.checkMentionTrigger(text, cursorPos)) {
+        _showMemberPicker();
+      }
+    }
+    // 私聊输入状态
+    if (!_isGroup) _sendTypingStatus();
+  }
+
+  /// 导航到下一条@消息
+  Future<void> _navigateToNextMention() async {
+    if (_groupId == null) return;
+    final mentionProvider = context.read<MentionProvider>();
+    final messageId = mentionProvider.navigateNext(_groupId!);
+    if (messageId == null) return;
+
+    final result = await _navigationHelper.scrollToMessage(
+      messageId: messageId,
+      groupId: _groupId!,
+      isGroup: true,
+      scrollController: _scrollController,
+      messages: _messages,
+      onLoadMore: () async {
+        if (!_hasMore || _messages.isEmpty) return false;
+        await _loadMoreMessages();
+        return _hasMore;
+      },
+      onShowToast: (msg) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        }
+      },
+    );
+
+    if (result == NavigationResult.success || result == NavigationResult.messageDeleted) {
+      mentionProvider.markRead(_groupId!, messageId);
+    }
+  }
+
+  /// 导航到上一条@消息
+  Future<void> _navigateToPrevMention() async {
+    if (_groupId == null) return;
+    final mentionProvider = context.read<MentionProvider>();
+    final messageId = mentionProvider.navigatePrev(_groupId!);
+    if (messageId == null) return;
+
+    final result = await _navigationHelper.scrollToMessage(
+      messageId: messageId,
+      groupId: _groupId!,
+      isGroup: true,
+      scrollController: _scrollController,
+      messages: _messages,
+      onLoadMore: () async {
+        if (!_hasMore || _messages.isEmpty) return false;
+        await _loadMoreMessages();
+        return _hasMore;
+      },
+      onShowToast: (msg) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        }
+      },
+    );
+
+    if (result == NavigationResult.success || result == NavigationResult.messageDeleted) {
+      mentionProvider.markRead(_groupId!, messageId);
+    }
+  }
+
+  /// 显示@成员选择器
+  void _showMemberPicker() {
+    final userId = _currentUserId ?? context.read<AuthProvider>().userId;
+    if (userId == null || _groupId == null) return;
+    final isAdmin = _currentUserRole == 'owner' || _currentUserRole == 'admin';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => MemberPickerSheet(
+        groupId: _groupId!,
+        currentUserId: userId,
+        isAdmin: isAdmin,
+        onSelect: (selectedUserId, nickname) {
+          _mentionController.insertMention(selectedUserId, nickname, _messageController);
+        },
+      ),
+    );
   }
 
   Future<void> _loadMessages() async {
@@ -668,10 +832,17 @@ class _ChatPageState extends State<ChatPage> {
     // 构建引用消息（作为对象发送，不是 JSON 字符串）
     Map<String, dynamic>? quotedData;
     if (quoted != null) {
+      // 优先使用 from_user 中的完整昵称，避免使用被打码的 from_name
+      final quotedFromUser = quoted['from_user'] as Map<String, dynamic>?;
+      final fromName = quotedFromUser?['nickname'] 
+          ?? quotedFromUser?['username'] 
+          ?? quoted['from_name'] 
+          ?? quoted['fromName'] 
+          ?? '';
       quotedData = {
         'id': quoted['id'],
         'from': quoted['from_id'] ?? quoted['from'],
-        'from_name': quoted['from_user']?['nickname'] ?? quoted['from_name'] ?? quoted['fromName'] ?? '',
+        'from_name': fromName,
         'type': quoted['message_type'] ?? quoted['type'] ?? 'text',
         'content': quoted['content'] ?? '',
         'timestamp': quoted['created_at'] ?? quoted['timestamp'] ?? '',
@@ -682,6 +853,8 @@ class _ChatPageState extends State<ChatPage> {
       if (_isGroup) {
         final data = <String, dynamic>{'content': text, 'type': 'message'};
         if (quotedData != null) data['quoted_message'] = jsonEncode(quotedData);
+        final mentionsJson = _mentionController.buildMentionsJson();
+        if (mentionsJson != null) data['mentions'] = mentionsJson;
         final response = await _dio.post('/groups/$_groupId/messages',
           data: FormData.fromMap(data),
         );
@@ -689,6 +862,7 @@ class _ChatPageState extends State<ChatPage> {
           final msg = response.data['data'] as Map<String, dynamic>;
           setState(() => _messages.insert(0, msg));
           _scrollToBottom();
+          _mentionController.clearPendingMentions();
         }
       } else {
         final currentUser = context.read<AuthProvider>().user;
@@ -882,7 +1056,83 @@ class _ChatPageState extends State<ChatPage> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(0, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
       }
+      // 清除滚动到底部按钮和新消息计数
+      if (_showScrollToBottom || _newMsgCount > 0) {
+        setState(() {
+          _showScrollToBottom = false;
+          _newMsgCount = 0;
+        });
+      }
     });
+  }
+
+  /// 私聊清空消息确认
+  void _confirmClearPrivateMessages() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空消息'),
+        content: const Text('确定要清空与该好友的所有聊天记录吗？\n仅为自己删除，好友仍能看到这些消息。此操作无法恢复。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                final res = await _dio.delete('/messages/$_friendId');
+                if (res.data['success'] == true && mounted) {
+                  setState(() {
+                    _messages.clear();
+                    _hasMore = false;
+                  });
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('清空失败')));
+                }
+              }
+            },
+            child: const Text('确定清空', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 引用消息点击跳转处理
+  /// Requirements: 7.1, 7.2, 7.3, 7.4, 9.4
+  void _onQuotedMessageTap(int quotedMessageId) async {
+    // 确定 groupId（群聊使用 groupId，私聊使用 friendId 作为标识）
+    final targetGroupId = _isGroup ? _groupId : _friendId;
+    if (targetGroupId == null) return;
+
+    final result = await _navigationHelper.scrollToMessage(
+      messageId: quotedMessageId,
+      groupId: targetGroupId,
+      isGroup: _isGroup,
+      scrollController: _scrollController,
+      messages: _messages,
+      onLoadMore: () async {
+        // 加载更多历史消息（追加到列表末尾，不替换）
+        if (!_hasMore || _messages.isEmpty) return false;
+        await _loadMoreMessages();
+        return _hasMore;
+      },
+      onShowToast: (message) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+          );
+        }
+      },
+    );
+
+    // 如果消息已被删除/撤回，显示提示 (Requirement 7.4)
+    if (result == NavigationResult.messageDeleted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('原始消息不存在或已被撤回'), duration: Duration(seconds: 2)),
+      );
+    }
   }
 
   DateTime? _parseTime(dynamic timeStr) {
@@ -906,9 +1156,17 @@ class _ChatPageState extends State<ChatPage> {
         centerTitle: false,
         titleSpacing: 0,
         title: GestureDetector(
-          onTap: _isGroup ? () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => GroupInfoPage(groupId: _groupId!, groupName: _chatName, groupAvatar: _chatAvatar),
-          )) : null,
+          onTap: _isGroup ? () async {
+            final result = await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => GroupInfoPage(groupId: _groupId!, groupName: _chatName, groupAvatar: _chatAvatar),
+            ));
+            if (result == 'cleared' && mounted) {
+              setState(() {
+                _messages.clear();
+                _hasMore = false;
+              });
+            }
+          } : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -930,6 +1188,33 @@ class _ChatPageState extends State<ChatPage> {
             ],
           ),
         ),
+        actions: [
+          if (_isGroup)
+            IconButton(
+              icon: Icon(Icons.more_horiz, color: isDark ? Colors.white70 : Colors.black54),
+              onPressed: () async {
+                final result = await Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => GroupInfoPage(groupId: _groupId!, groupName: _chatName, groupAvatar: _chatAvatar),
+                ));
+                if (result == 'cleared' && mounted) {
+                  setState(() {
+                    _messages.clear();
+                    _hasMore = false;
+                  });
+                }
+              },
+            ),
+          if (!_isGroup && !_isSystemNotification)
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: isDark ? Colors.white70 : Colors.black54),
+              onSelected: (value) {
+                if (value == 'clear') _confirmClearPrivateMessages();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'clear', child: Text('清空聊天记录')),
+              ],
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -942,17 +1227,19 @@ class _ChatPageState extends State<ChatPage> {
                 ? const Center(child: CircularProgressIndicator())
                 : _messages.isEmpty
                     ? Center(child: Text('暂无消息', style: AppTextStyles.body.copyWith(color: AppColors.lightTextTertiary)))
-                    : Align(
-                        alignment: Alignment.topCenter,
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          reverse: true,
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-                          itemCount: _messages.length,
-                          addAutomaticKeepAlives: false,
-                          addRepaintBoundaries: true,
-                          itemBuilder: (context, index) {
+                    : Stack(
+                        children: [
+                          Align(
+                            alignment: Alignment.topCenter,
+                            child: ListView.builder(
+                              controller: _scrollController,
+                              reverse: true,
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                              itemCount: _messages.length,
+                              addAutomaticKeepAlives: false,
+                              addRepaintBoundaries: true,
+                              itemBuilder: (context, index) {
                           final msg = _messages[index];
                           final fromId = msg['from_id'] ?? msg['from_user']?['id'] ?? msg['from'];
                           final isMe = fromId != null && currentUserId != null && '$fromId' == '$currentUserId';
@@ -968,27 +1255,107 @@ class _ChatPageState extends State<ChatPage> {
                               showTime = curTime.difference(nextTime).inMinutes.abs() >= 5;
                             }
                           }
+                          final msgId = (msg['id'] is num) ? (msg['id'] as num).toInt() : 0;
                           return RepaintBoundary(
-                            child: _MessageBubble(
-                              message: msg,
-                              isMe: isMe,
-                              isGroup: _isGroup,
-                              isDark: isDark,
-                              showTime: showTime,
-                              isSelected: _selectedMessageId == msg['id'],
-                              onQuote: (m) => setState(() => _quotedMessage = m),
-                              onTap: () => setState(() {
-                                _selectedMessageId = _selectedMessageId == msg['id'] ? null : msg['id'] as int?;
-                              }),
+                            key: msgId > 0 ? _navigationHelper.getKeyForMessage(msgId) : null,
+                            child: MessageHighlightWrapper(
+                              messageId: msgId,
+                              highlightedMessageId: _navigationHelper.highlightedMessageId,
+                              child: _MessageBubble(
+                                message: msg,
+                                isMe: isMe,
+                                isGroup: _isGroup,
+                                isDark: isDark,
+                                showTime: showTime,
+                                isSelected: _selectedMessageId == msg['id'],
+                                onQuote: (m) => setState(() => _quotedMessage = m),
+                                onQuotedMessageTap: (quotedMsgId) => _onQuotedMessageTap(quotedMsgId),
+                                onTap: () => setState(() {
+                                  _selectedMessageId = _selectedMessageId == msg['id'] ? null : msg['id'] as int?;
+                                }),
+                              ),
                             ),
                           );
                         },
+                            ),
+                          ),
+                          // 滚动到底部按钮
+                          if (_showScrollToBottom)
+                            Positioned(
+                              right: 16,
+                              bottom: 12,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _showScrollToBottom = false;
+                                    _newMsgCount = 0;
+                                  });
+                                  _scrollToBottom();
+                                },
+                                child: Container(
+                                  padding: _newMsgCount > 0
+                                      ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+                                      : const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF2A2A30) : Colors.white,
+                                    borderRadius: BorderRadius.circular(_newMsgCount > 0 ? 20 : 24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withAlpha(isDark ? 60 : 25),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                    border: Border.all(
+                                      color: (isDark ? Colors.white : Colors.black).withAlpha(20),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_newMsgCount > 0) ...[
+                                        Text(
+                                          '$_newMsgCount条新消息',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                      ],
+                                      Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        size: 20,
+                                        color: _newMsgCount > 0 ? AppColors.primary : (isDark ? Colors.white60 : Colors.black54),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
           ),
           // 正在输入指示器
           if (_isTyping && !_isGroup)
             _buildTypingIndicator(isDark),
+          // @mention 导航条
+          if (_isGroup && _groupId != null)
+            Consumer<MentionProvider>(
+              builder: (context, mentionProvider, _) {
+                final count = mentionProvider.getUnreadCount(_groupId!);
+                if (count <= 0) return const SizedBox.shrink();
+                return MentionNavWidget(
+                  unreadCount: count,
+                  currentIndex: mentionProvider.getNavigationIndex(_groupId!),
+                  onNext: () => _navigateToNextMention(),
+                  onPrev: () => _navigateToPrevMention(),
+                  onClose: () => mentionProvider.clearAll(_groupId!),
+                );
+              },
+            ),
           // 引用消息预览
           if (_quotedMessage != null && !_isSystemNotification)
             _buildQuotedPreview(isDark),
@@ -1259,7 +1626,7 @@ class _ChatPageState extends State<ChatPage> {
                     maxLines: 4,
                     minLines: 1,
                     textInputAction: TextInputAction.send,
-                    onChanged: (_) => _sendTypingStatus(),
+                    onChanged: null,
                     onTap: () {
                       if (_showEmojiPicker) setState(() => _showEmojiPicker = false);
                     },
@@ -1357,8 +1724,9 @@ class _MessageBubble extends StatelessWidget {
   final bool isSelected;
   final void Function(Map<String, dynamic>)? onQuote;
   final VoidCallback? onTap;
+  final void Function(int quotedMessageId)? onQuotedMessageTap;
 
-  const _MessageBubble({required this.message, required this.isMe, required this.isGroup, required this.isDark, this.showTime = true, this.isSelected = false, this.onQuote, this.onTap});
+  const _MessageBubble({required this.message, required this.isMe, required this.isGroup, required this.isDark, this.showTime = true, this.isSelected = false, this.onQuote, this.onTap, this.onQuotedMessageTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1615,7 +1983,13 @@ class _MessageBubble extends StatelessWidget {
     if (quotedData == null) return const SizedBox.shrink();
 
     final qContent = quotedData['content']?.toString() ?? '';
-    final qFromName = quotedData['from_name']?.toString() ?? quotedData['fromName']?.toString() ?? '';
+    // 优先使用 from_user 中的完整昵称，避免显示被打码的名字
+    final qFromUser = quotedData['from_user'] as Map<String, dynamic>?;
+    final qFromName = qFromUser?['nickname']?.toString() 
+        ?? qFromUser?['username']?.toString()
+        ?? quotedData['from_name']?.toString() 
+        ?? quotedData['fromName']?.toString() 
+        ?? '';
     final qType = quotedData['type']?.toString() ?? 'text';
     
     String displayContent = qContent;
@@ -1623,27 +1997,38 @@ class _MessageBubble extends StatelessWidget {
     if (qType == 'video' || qType == 'videos') displayContent = '[视频]';
     if (displayContent.length > 50) displayContent = '${displayContent.substring(0, 50)}...';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: (isDark ? Colors.white : Colors.black).withAlpha(15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: AppColors.primary, width: 2.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (qFromName.isNotEmpty)
-            Text(qFromName, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
-          Text(
-            displayContent,
-            style: TextStyle(fontSize: 12, color: isMe ? Colors.white70 : (isDark ? Colors.white60 : Colors.black54)),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+    // 提取引用消息ID，用于点击跳转 (Requirements: 7.1, 9.4)
+    final rawQId = quotedData['id'] ?? quotedData['message_id'];
+    final quotedMsgId = (rawQId is num) ? rawQId.toInt() : null;
+
+    return GestureDetector(
+      onTap: () {
+        if (quotedMsgId != null && onQuotedMessageTap != null) {
+          onQuotedMessageTap!(quotedMsgId);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: (isDark ? Colors.white : Colors.black).withAlpha(15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(left: BorderSide(color: AppColors.primary, width: 2.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (qFromName.isNotEmpty)
+              Text(qFromName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
+            Text(
+              displayContent,
+              style: TextStyle(fontSize: 12, color: isMe ? Colors.white70 : (isDark ? Colors.white60 : Colors.black54)),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1735,9 +2120,25 @@ class _MessageBubble extends StatelessWidget {
       );
     }
 
+    // Text message: use MentionRichText for group chats to highlight @mentions
+    final textStyle = AppTextStyles.chatMsg.copyWith(color: isMe ? Colors.white : (isDark ? AppColors.darkText : AppColors.lightText));
+    if (isGroup && content.isNotEmpty) {
+      return RichText(
+        text: TextSpan(
+          children: MentionRichText.parse(
+            content: content,
+            baseStyle: textStyle,
+            mentionStyle: textStyle.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    }
     return Text(
       content,
-      style: AppTextStyles.chatMsg.copyWith(color: isMe ? Colors.white : (isDark ? AppColors.darkText : AppColors.lightText)),
+      style: textStyle,
     );
   }
 
