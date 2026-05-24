@@ -2,8 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../../services/api/api_client.dart';
 import '../../theme/app_colors.dart';
+import '../../providers/check_in_provider.dart';
 import 'check_in_page.dart';
 import 'official_account_list_page.dart';
 import 'live_stream_list_page.dart';
@@ -134,6 +136,17 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                           ),
                                         ),
                                       ),
+                                      // 签到红点
+                                      if (key == 'checkin' && context.watch<CheckInProvider>().showBadge)
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          margin: const EdgeInsets.only(right: 6),
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.error,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
                                       Icon(CupertinoIcons.chevron_right, size: 14, color: AppColors.systemGray3),
                                     ],
                                   ),

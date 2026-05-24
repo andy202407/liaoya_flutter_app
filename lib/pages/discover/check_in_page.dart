@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../services/api/api_client.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../providers/check_in_provider.dart';
 
 class CheckInPage extends StatefulWidget {
   const CheckInPage({super.key});
@@ -80,6 +82,7 @@ class _CheckInPageState extends State<CheckInPage> {
         setState(() => _stats = res.data['data'] as Map<String, dynamic>);
         await Future.wait([_fetchCalendar(), _fetchRanking()]);
         if (mounted) {
+          context.read<CheckInProvider>().markCheckedIn();
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('签到成功！🎉'), duration: Duration(seconds: 2)));
         }
       }

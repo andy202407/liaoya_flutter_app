@@ -12,6 +12,7 @@ import 'package:dio/dio.dart' as dio_pkg;
 import 'package:open_filex/open_filex.dart';
 
 import '../../providers/conversation_provider.dart';
+import '../../providers/check_in_provider.dart';
 import '../../services/websocket_service.dart';
 import '../../services/notification_sound.dart';
 import '../../services/api/api_client.dart';
@@ -50,6 +51,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       WebSocketService.instance.connect();
       context.read<ConversationProvider>().init();
+      context.read<CheckInProvider>().init();
       _wsConnectionSub = WebSocketService.instance.connectionStream.listen((connected) {
         if (!mounted) return;
         if (connected) {
@@ -339,6 +341,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final convProvider = context.watch<ConversationProvider>();
+    final checkInProvider = context.watch<CheckInProvider>();
     final unread = convProvider.totalUnread;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -470,8 +473,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                       _buildTabItem(
                         index: 2,
-                        icon: const Icon(CupertinoIcons.compass),
-                        activeIcon: const Icon(CupertinoIcons.compass_fill),
+                        icon: Badge(
+                          isLabelVisible: checkInProvider.showBadge,
+                          smallSize: 8,
+                          backgroundColor: AppColors.error,
+                          child: const Icon(CupertinoIcons.compass),
+                        ),
+                        activeIcon: Badge(
+                          isLabelVisible: checkInProvider.showBadge,
+                          smallSize: 8,
+                          backgroundColor: AppColors.error,
+                          child: const Icon(CupertinoIcons.compass_fill),
+                        ),
                         label: '发现',
                       ),
                       _buildTabItem(

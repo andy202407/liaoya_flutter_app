@@ -7,6 +7,8 @@ import 'theme/theme_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/conversation_provider.dart';
 import 'providers/friend_provider.dart';
+import 'providers/mention_provider.dart';
+import 'providers/check_in_provider.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/auth/register_page.dart';
 import 'pages/home/home_page.dart';
@@ -44,6 +46,8 @@ class LiaoyaApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ConversationProvider()),
         ChangeNotifierProvider(create: (_) => FriendProvider()),
+        ChangeNotifierProvider(create: (_) => MentionProvider()),
+        ChangeNotifierProvider(create: (_) => CheckInProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
