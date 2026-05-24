@@ -16,15 +16,15 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
   late TabController _tabController;
   List<Map<String, dynamic>> _streams = [];
   bool _isLoading = true;
-  int _currentTab = -1; // -1=全部, 0=即将开始, 1=直播中, 2=已结束
+  int _currentTab = 1; // 1=直播中, 0=即将开始, 2=已结束
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        final tabs = [-1, 1, 0, 2];
+        final tabs = [1, 0, 2];
         setState(() => _currentTab = tabs[_tabController.index]);
       }
     });
@@ -46,6 +46,17 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
         setState(() {
           _streams = data.map((e) => e as Map<String, dynamic>).toList();
         });
+        // 自动选择默认 tab：有直播中选直播中，否则选即将开始，都没有就留在直播中
+        if (_liveCount > 0) {
+          _tabController.index = 0;
+          _currentTab = 1;
+        } else if (_upcomingCount > 0) {
+          _tabController.index = 1;
+          _currentTab = 0;
+        } else {
+          _tabController.index = 0;
+          _currentTab = 1;
+        }
       }
     } catch (e) {
       debugPrint('[LiveStream] load error: $e');
@@ -54,7 +65,6 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
   }
 
   List<Map<String, dynamic>> get _filteredStreams {
-    if (_currentTab == -1) return _streams;
     return _streams.where((s) => s['status'] == _currentTab).toList();
   }
 
@@ -76,7 +86,6 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
           unselectedLabelColor: AppColors.systemGray,
           indicatorSize: TabBarIndicatorSize.label,
           tabs: [
-            const Tab(text: '全部'),
             Tab(child: _buildTabWithBadge('直播中', _liveCount, AppColors.error)),
             Tab(child: _buildTabWithBadge('即将开始', _upcomingCount, AppColors.warning)),
             const Tab(text: '已结束'),
@@ -124,15 +133,30 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
   }
 
   Widget _buildEmpty(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(CupertinoIcons.tv, size: 56, color: AppColors.systemGray3),
-          const SizedBox(height: 16),
-          Text('暂无直播', style: TextStyle(fontSize: 15, color: AppColors.systemGray)),
-        ],
-      ),
+    String message;
+    switch (_currentTab) {
+      case 1:
+        message = '暂无直播，稍后再来看看吧';
+        break;
+      case 0:
+        message = '暂无即将开始的比赛';
+        break;
+      default:
+        message = '暂无已结束的比赛';
+    }
+    return ListView(
+      children: [
+        const SizedBox(height: 120),
+        Center(
+          child: Column(
+            children: [
+              Icon(CupertinoIcons.tv, size: 56, color: AppColors.systemGray3),
+              const SizedBox(height: 16),
+              Text(message, style: TextStyle(fontSize: 15, color: AppColors.systemGray)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -145,9 +169,11 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
     final awayScore = stream['away_score'];
     final homeLogo = stream['home_logo'] as String?;
     final awayLogo = stream['away_logo'] as String?;
-    final coverImage = stream['cover_image'] as String?;
-    final viewCount = stream['view_count'] as int? ?? 0;
     final matchTime = stream['match_time'] as String?;
+    final isLive = status == 1;
+    final broadcaster = stream['broadcaster'] as Map<String, dynamic>?;
+    final broadcasterAvatar = broadcaster?['avatar'] as String?;
+    final broadcasterName = broadcaster?['nickname'] ?? '主播';
 
     return GestureDetector(
       onTap: () {
@@ -157,226 +183,211 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          color: isDark ? const Color(0xFF1A2332) : const Color(0xFFFCFCFD),
+          borderRadius: BorderRadius.circular(12),
+          border: isLive
+              ? Border.all(color: AppColors.error.withAlpha(isDark ? 50 : 30), width: 1)
+              : Border.all(color: isDark ? AppColors.darkDivider : const Color(0xFFEEEEEE), width: 0.5),
           boxShadow: [
             BoxShadow(
-              color: isDark ? Colors.black.withAlpha(40) : Colors.black.withAlpha(8),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: Colors.black.withAlpha(isDark ? 40 : 6),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
+        child: Row(
           children: [
-            // 封面区域
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // 封面图
-                  if (coverImage != null && coverImage.isNotEmpty)
-                    Image.network(
-                      coverImage.startsWith('http') ? coverImage : '${ApiConfig.baseUrl}$coverImage',
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildDefaultCover(isDark),
-                    )
-                  else
-                    _buildDefaultCover(isDark),
-                  // 渐变遮罩
-                  Container(
+            // 左：主播头像
+            Column(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: isLive
+                        ? const LinearGradient(colors: [Color(0xFFAA5CFC), Color(0xFF7C5CFC)])
+                        : null,
+                    border: !isLive ? Border.all(color: AppColors.systemGray3, width: 1.5) : null,
+                  ),
+                  child: Container(
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black.withAlpha(120)],
-                      ),
+                      shape: BoxShape.circle,
+                      color: isDark ? AppColors.darkCard : Colors.white,
+                    ),
+                    padding: const EdgeInsets.all(1.5),
+                    child: ClipOval(
+                      child: broadcasterAvatar != null && broadcasterAvatar.isNotEmpty
+                          ? Image.network(
+                              broadcasterAvatar.startsWith('http') ? broadcasterAvatar : '${ApiConfig.baseUrl}$broadcasterAvatar',
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
+                            )
+                          : _buildAvatarPlaceholder(isDark),
                     ),
                   ),
-                  // 状态标签
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: _buildStatusBadge(status),
-                  ),
-                  // 观看人数
-                  if (viewCount > 0)
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withAlpha(120),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(CupertinoIcons.eye, size: 12, color: Colors.white70),
-                            const SizedBox(width: 4),
-                            Text('$viewCount', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  broadcasterName.length > 4 ? broadcasterName.substring(0, 4) : broadcasterName,
+                  style: TextStyle(fontSize: 10, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray),
+                ),
+              ],
             ),
-            // 对阵信息
-            Padding(
-              padding: const EdgeInsets.all(14),
+            const SizedBox(width: 14),
+            // 中：赛事信息（联赛 + 两队比分）
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 联赛 + 时间
-                  if (league.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Row(
-                        children: [
-                          Text(
-                            league,
-                            style: TextStyle(fontSize: 12, color: AppColors.systemGray, fontWeight: FontWeight.w500),
-                          ),
-                          const Spacer(),
-                          if (matchTime != null)
-                            Text(
-                              _formatTime(matchTime),
-                              style: TextStyle(fontSize: 11, color: AppColors.systemGray2),
-                            ),
-                        ],
-                      ),
-                    ),
-                  // 对阵
+                  // 联赛
                   Row(
                     children: [
-                      // 主队
+                      if (stream['league_logo'] != null && (stream['league_logo'] as String).isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Image.network(stream['league_logo'], width: 14, height: 14, fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                        ),
+                      Text(league, style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextSecondary : AppColors.systemGray)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // 主队行
+                  Row(
+                    children: [
+                      _buildSmallTeamLogo(homeLogo, homeTeam, isDark),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: Row(
-                          children: [
-                            if (homeLogo != null && homeLogo.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Image.network(homeLogo, width: 24, height: 24, fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const SizedBox(width: 24, height: 24)),
-                              ),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                homeTeam,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? AppColors.darkText : AppColors.lightText,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: Text(homeTeam, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
-                      // 比分
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkBg : AppColors.lightBg,
-                          borderRadius: BorderRadius.circular(8),
+                      if (homeScore != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text('$homeScore', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: isLive ? AppColors.error : (isDark ? AppColors.darkText : AppColors.lightText))),
                         ),
-                        child: homeScore != null && awayScore != null
-                            ? Text(
-                                '$homeScore - $awayScore',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: status == 1 ? AppColors.error : (isDark ? AppColors.darkText : AppColors.lightText),
-                                ),
-                              )
-                            : Text(
-                                'VS',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.systemGray,
-                                ),
-                              ),
-                      ),
-                      // 客队
+                    ],
+                  ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    height: 0.5,
+                    color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
+                  ),
+                  // 客队行
+                  Row(
+                    children: [
+                      _buildSmallTeamLogo(awayLogo, awayTeam, isDark),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                awayTeam,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? AppColors.darkText : AppColors.lightText,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            if (awayLogo != null && awayLogo.isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Image.network(awayLogo, width: 24, height: 24, fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const SizedBox(width: 24, height: 24)),
-                              ),
-                          ],
-                        ),
+                        child: Text(awayTeam, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
+                      if (awayScore != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Text('$awayScore', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: isLive ? AppColors.error : (isDark ? AppColors.darkText : AppColors.lightText))),
+                        ),
                     ],
                   ),
                 ],
               ),
             ),
+            // 右侧分隔线
+            Container(
+              width: 0.5,
+              height: 50,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              color: isDark ? AppColors.darkDivider : AppColors.lightDivider,
+            ),
+            // 右：时间 + 状态
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (matchTime != null)
+                  Text(_formatTime(matchTime), style: TextStyle(fontSize: 11, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray2)),
+                const SizedBox(height: 8),
+                _buildStatusTag(status),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDefaultCover(bool isDark) {
+  Widget _buildAvatarPlaceholder(bool isDark) {
     return Container(
       color: isDark ? AppColors.darkCardElevated : AppColors.lightInputBg,
+      child: Icon(CupertinoIcons.person_fill, size: 22, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray3),
+    );
+  }
+
+  Widget _buildSmallTeamLogo(String? logoUrl, String teamName, bool isDark) {
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: Image.network(logoUrl, width: 18, height: 18, fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _buildSmallTeamPlaceholder(teamName, isDark)),
+      );
+    }
+    return _buildSmallTeamPlaceholder(teamName, isDark);
+  }
+
+  Widget _buildSmallTeamPlaceholder(String teamName, bool isDark) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkBg : AppColors.lightInputBg,
+        borderRadius: BorderRadius.circular(3),
+      ),
       child: Center(
-        child: Icon(CupertinoIcons.tv, size: 40, color: AppColors.systemGray3),
+        child: Text(teamName.isNotEmpty ? teamName[0] : '?', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
       ),
     );
   }
 
-  Widget _buildStatusBadge(int status) {
-    Color bgColor;
-    String text;
+  Widget _buildStatusTag(int status) {
     switch (status) {
       case 1:
-        bgColor = AppColors.error;
-        text = '● 直播中';
-        break;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.error,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('▐▌', style: TextStyle(fontSize: 8, color: Colors.white)),
+              SizedBox(width: 3),
+              Text('直播中', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        );
       case 0:
-        bgColor = AppColors.warning;
-        text = '即将开始';
-        break;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withAlpha(20),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text('即将开始', style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.w500)),
+        );
       default:
-        bgColor = AppColors.systemGray;
-        text = '已结束';
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.systemGray.withAlpha(20),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text('已结束', style: TextStyle(color: AppColors.systemGray, fontSize: 11, fontWeight: FontWeight.w500)),
+        );
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
-    );
   }
 
   String _formatTime(String? timeStr) {

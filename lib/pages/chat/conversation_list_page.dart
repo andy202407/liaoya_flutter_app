@@ -415,6 +415,7 @@ class _ConversationTileState extends State<_ConversationTile> with SingleTickerP
 
     final lastMessage = (conversation['last_message'] ?? '').toString();
     final unread = _toInt(conversation['unread_count']) ?? 0;
+    final mentionCount = _toInt(conversation['mention_unread_count']) ?? 0;
     final lastTime = conversation['last_time']?.toString();
     final friendId = _toInt(friend?['id']) ?? 0;
     final isSystemNotification = type == 1 && friendId == 1;
@@ -596,14 +597,41 @@ class _ConversationTileState extends State<_ConversationTile> with SingleTickerP
                                           builder: (context) {
                                             final isTyping = !isGroup && !isOA && !isSystemNotification && friendId > 0 &&
                                                 context.watch<ConversationProvider>().isUserTyping(friendId);
+                                            if (isTyping) {
+                                              return Text(
+                                                '正在输入...',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: AppTextStyles.convMsg.copyWith(color: AppColors.success),
+                                              );
+                                            }
+                                            if (isGroup && mentionCount > 0) {
+                                              return RichText(
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                text: TextSpan(children: [
+                                                  TextSpan(
+                                                    text: '[有人@你] ',
+                                                    style: AppTextStyles.convMsg.copyWith(
+                                                      color: AppColors.error,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  TextSpan(
+                                                    text: lastMessage,
+                                                    style: AppTextStyles.convMsg.copyWith(
+                                                      color: isDark ? AppColors.darkTextSecondary : AppColors.systemGray,
+                                                    ),
+                                                  ),
+                                                ]),
+                                              );
+                                            }
                                             return Text(
-                                              isTyping ? '正在输入...' : lastMessage,
+                                              lastMessage,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: AppTextStyles.convMsg.copyWith(
-                                                color: isTyping
-                                                    ? AppColors.success
-                                                    : (isDark ? AppColors.darkTextSecondary : AppColors.systemGray),
+                                                color: isDark ? AppColors.darkTextSecondary : AppColors.systemGray,
                                               ),
                                             );
                                           },
@@ -620,6 +648,21 @@ class _ConversationTileState extends State<_ConversationTile> with SingleTickerP
                                           ),
                                           child: Text(
                                             unread > 99 ? '99+' : '$unread',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                                          ),
+                                        )
+                                      else if (muted && mentionCount > 0)
+                                        Container(
+                                          margin: const EdgeInsets.only(left: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          constraints: const BoxConstraints(minWidth: 18),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.error,
+                                            borderRadius: BorderRadius.circular(9),
+                                          ),
+                                          child: Text(
+                                            mentionCount > 99 ? '99+' : '$mentionCount',
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
                                           ),
