@@ -29,6 +29,7 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
   final _chatScrollController = ScrollController();
   bool _isMuted = false;
   Timer? _chatPollTimer;
+  String? _currentPlaybackUrl;
 
   int get _streamId => widget.stream['id'] as int? ?? 0;
   int get _status => _streamDetail?['status'] ?? widget.stream['status'] ?? 0;
@@ -39,11 +40,9 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     _loadStreamDetail();
     _loadChatMessages();
     _joinChatRoom();
-    // 监听聊天消息
     WebSocketService.instance.on('live_chat', _onChatMessage);
     WebSocketService.instance.on('live_chat_delete', _onChatDelete);
     WebSocketService.instance.on('live_chat_error', _onChatError);
-    // 监听直播状态更新（比分、状态切换）
     WebSocketService.instance.on('live_stream_update', _onStreamUpdate);
   }
 
@@ -67,16 +66,17 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     try {
       final res = await ApiClient.instance.dio.get('/user/live-streams/$_streamId');
       if (res.data['success'] == true && res.data['data'] != null) {
-        final oldPlaybackUrl = _streamDetail?['playback_url'] ?? widget.stream['playback_url'];
         final oldStatus = _status;
         final isFirstLoad = _streamDetail == null;
         setState(() => _streamDetail = res.data['data']);
         final newPlaybackUrl = _streamDetail?['playback_url'] as String?;
 
-        // 播放链接变了（重置密钥后），销毁旧播放器重新初始化
-        if (!isFirstLoad && newPlaybackUrl != null && newPlaybackUrl.isNotEmpty && newPlaybackUrl != oldPlaybackUrl && _videoController != null) {
+        // 播放链接变了，重新初始化
+        if (!isFirstLoad && newPlaybackUrl != null && newPlaybackUrl.isNotEmpty && newPlaybackUrl != _currentPlaybackUrl && _videoController != null) {
+          _videoController?.removeListener(_onVideoError);
           _videoController?.dispose();
           _videoController = null;
+          _currentPlaybackUrl = null;
           setState(() {
             _isVideoLoading = true;
             _videoError = false;
@@ -85,7 +85,7 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
           return;
         }
 
-        // 首次加载或状态变为直播中，初始化播放
+        // 首次加载，初始化播放
         if (_videoController == null && newPlaybackUrl != null && newPlaybackUrl.isNotEmpty) {
           setState(() {
             _isVideoLoading = true;
@@ -117,15 +117,14 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
       return;
     }
 
-    // 加时间戳绕过缓存
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
     String fullUrl = playbackUrl.startsWith('http') ? playbackUrl : '${ApiConfig.baseUrl}$playbackUrl';
-    fullUrl = fullUrl.contains('?') ? '$fullUrl&_t=$timestamp' : '$fullUrl?_t=$timestamp';
+    _currentPlaybackUrl = playbackUrl;
 
     _videoController?.removeListener(_onVideoError);
     _videoController?.dispose();
     _videoController = VideoPlayerController.networkUrl(
       Uri.parse(fullUrl),
+      formatHint: VideoFormat.hls,
       httpHeaders: const {'Connection': 'keep-alive'},
     )
       ..initialize().then((_) {
@@ -166,7 +165,6 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     }
     _retryCount++;
     _retryTimer?.cancel();
-    // 快速重试：1s, 1.5s, 2s, 2.5s, 3s
     final delay = Duration(milliseconds: 800 + (_retryCount * 500));
     _retryTimer = Timer(delay, () {
       if (mounted && _status == 1) {
@@ -235,7 +233,6 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
   }
 
   void _onStreamUpdate(Map<String, dynamic> msg) {
-    // 收到直播更新通知，重新加载详情（比分、状态等）
     final content = msg['content'];
     Map<String, dynamic>? data;
     if (content is String) {
@@ -247,7 +244,6 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     if (streamId != null && streamId.toString() == '$_streamId') {
       _loadStreamDetail();
     } else {
-      // 广播更新，也刷新
       _loadStreamDetail();
     }
   }
@@ -314,7 +310,6 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
       ),
       body: Column(
         children: [
-          // 视频播放器
           AspectRatio(
             aspectRatio: 16 / 9,
             child: Container(
@@ -322,9 +317,7 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
               child: _buildVideoPlayer(),
             ),
           ),
-          // 对战信息条
           _buildMatchBar(homeTeam, awayTeam, homeScore, awayScore, homeLogo, awayLogo, isDark),
-          // 聊天区域
           Expanded(child: _buildChatSection(isDark)),
         ],
       ),
@@ -349,7 +342,6 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     if (_videoError || _videoController == null) {
       return GestureDetector(
         onTap: () {
-          // 手动重试
           _retryCount = 0;
           setState(() {
             _isVideoLoading = true;
@@ -403,50 +395,34 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
       ),
       child: Row(
         children: [
-          // 主队
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Flexible(
-                  child: Text(home, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
+                Flexible(child: Text(home, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 if (homeLogo != null && homeLogo.isNotEmpty) ...[
                   const SizedBox(width: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: Image.network(homeLogo, width: 20, height: 20, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                  ),
+                  ClipRRect(borderRadius: BorderRadius.circular(3), child: Image.network(homeLogo, width: 20, height: 20, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink())),
                 ],
               ],
             ),
           ),
-          // 比分
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkBg : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(6),
-            ),
+            decoration: BoxDecoration(color: isDark ? AppColors.darkBg : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
             child: homeScore != null && awayScore != null
                 ? Text('$homeScore - $awayScore', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _status == 1 ? AppColors.error : (isDark ? AppColors.darkText : AppColors.lightText)))
                 : Text('VS', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.systemGray)),
           ),
-          // 客队
           Expanded(
             child: Row(
               children: [
                 if (awayLogo != null && awayLogo.isNotEmpty) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: Image.network(awayLogo, width: 20, height: 20, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-                  ),
+                  ClipRRect(borderRadius: BorderRadius.circular(3), child: Image.network(awayLogo, width: 20, height: 20, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink())),
                   const SizedBox(width: 6),
                 ],
-                Flexible(
-                  child: Text(away, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
+                Flexible(child: Text(away, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -457,22 +433,11 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
 
   Widget _buildChatSection(bool isDark) {
     final currentUserId = context.read<AuthProvider>().userId;
-
     return Column(
       children: [
-        // 聊天消息列表
         Expanded(
           child: _chatMessages.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(CupertinoIcons.chat_bubble_2, size: 36, color: AppColors.systemGray3),
-                      const SizedBox(height: 8),
-                      Text('暂无消息', style: TextStyle(fontSize: 13, color: AppColors.systemGray)),
-                    ],
-                  ),
-                )
+              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(CupertinoIcons.chat_bubble_2, size: 36, color: AppColors.systemGray3), const SizedBox(height: 8), Text('暂无消息', style: TextStyle(fontSize: 13, color: AppColors.systemGray))]))
               : ListView.builder(
                   controller: _chatScrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -484,87 +449,22 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
                   },
                 ),
         ),
-        // 状态提示
-        if (_isMuted)
-          Container(
-            padding: const EdgeInsets.all(8),
-            color: AppColors.warning.withAlpha(20),
-            child: const Text('🔇 你已被禁言', style: TextStyle(fontSize: 12, color: AppColors.warning), textAlign: TextAlign.center),
-          ),
-        if (_status != 1)
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: isDark ? AppColors.darkCard : AppColors.lightInputBg,
-            child: Text(
-              _status == 0 ? '⏳ 比赛尚未开始，聊天室暂未开放' : '🏁 比赛已结束，聊天室已关闭',
-              style: TextStyle(fontSize: 13, color: AppColors.systemGray),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        // 快捷表情 + 输入框
+        if (_isMuted) Container(padding: const EdgeInsets.all(8), color: AppColors.warning.withAlpha(20), child: const Text('🔇 你已被禁言', style: TextStyle(fontSize: 12, color: AppColors.warning), textAlign: TextAlign.center)),
+        if (_status != 1) Container(padding: const EdgeInsets.all(12), color: isDark ? AppColors.darkCard : AppColors.lightInputBg, child: Text(_status == 0 ? '⏳ 比赛尚未开始，聊天室暂未开放' : '🏁 比赛已结束，聊天室已关闭', style: TextStyle(fontSize: 13, color: AppColors.systemGray), textAlign: TextAlign.center)),
         if (!_isMuted && _status == 1)
           Container(
             padding: EdgeInsets.fromLTRB(12, 6, 12, MediaQuery.of(context).padding.bottom + 6),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : Colors.white,
-              border: Border(top: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider, width: 0.5)),
-            ),
+            decoration: BoxDecoration(color: isDark ? AppColors.darkCard : Colors.white, border: Border(top: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider, width: 0.5))),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 快捷表情栏
-                SizedBox(
-                  height: 32,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: ['⚽', '🔥', '👏', '😍', '🎉', '💪', '😂', '❤️', '👍', '😱', '🏆', '🙏'].map((emoji) {
-                      return GestureDetector(
-                        onTap: () => _sendEmoji(emoji),
-                        child: Container(
-                          width: 32,
-                          alignment: Alignment.center,
-                          child: Text(emoji, style: const TextStyle(fontSize: 18)),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
+                SizedBox(height: 32, child: ListView(scrollDirection: Axis.horizontal, children: ['⚽', '🔥', '👏', '😍', '🎉', '💪', '😂', '❤️', '👍', '😱', '🏆', '🙏'].map((emoji) => GestureDetector(onTap: () => _sendEmoji(emoji), child: Container(width: 32, alignment: Alignment.center, child: Text(emoji, style: const TextStyle(fontSize: 18))))).toList())),
                 const SizedBox(height: 6),
-                // 输入框
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _chatController,
-                        decoration: InputDecoration(
-                          hintText: '说点什么...',
-                          hintStyle: TextStyle(color: AppColors.systemGray, fontSize: 14),
-                          filled: true,
-                          fillColor: isDark ? AppColors.darkInputBg : AppColors.lightInputBg,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        ),
-                        maxLength: 200,
-                        maxLines: 1,
-                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-                        onSubmitted: (_) => _sendChat(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: _sendChat,
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
+                Row(children: [
+                  Expanded(child: TextField(controller: _chatController, decoration: InputDecoration(hintText: '说点什么...', hintStyle: TextStyle(color: AppColors.systemGray, fontSize: 14), filled: true, fillColor: isDark ? AppColors.darkInputBg : AppColors.lightInputBg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)), maxLength: 200, maxLines: 1, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, onSubmitted: (_) => _sendChat())),
+                  const SizedBox(width: 8),
+                  GestureDetector(onTap: _sendChat, child: Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle), child: const Icon(Icons.send_rounded, color: Colors.white, size: 18))),
+                ]),
               ],
             ),
           ),
@@ -575,40 +475,13 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
   Widget _buildChatBubble(Map<String, dynamic> msg, bool isSelf, bool isDark) {
     final nickname = msg['nickname'] ?? '用户';
     final content = msg['content'] ?? '';
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 头像
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withAlpha(40),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                nickname.isNotEmpty ? nickname[0].toUpperCase() : '?',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(nickname, style: TextStyle(fontSize: 11, color: AppColors.systemGray, fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(content, style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkText : AppColors.lightText)),
-              ],
-            ),
-          ),
-        ],
-      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.primary.withAlpha(40), shape: BoxShape.circle), child: Center(child: Text(nickname.isNotEmpty ? nickname[0].toUpperCase() : '?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)))),
+        const SizedBox(width: 8),
+        Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(nickname, style: TextStyle(fontSize: 11, color: AppColors.systemGray, fontWeight: FontWeight.w500)), const SizedBox(height: 2), Text(content, style: TextStyle(fontSize: 14, color: isDark ? AppColors.darkText : AppColors.lightText))])),
+      ]),
     );
   }
 }

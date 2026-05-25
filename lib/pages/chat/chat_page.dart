@@ -2771,7 +2771,6 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
       );
       _controller!.setVolume(0);
 
-      // 设置超时：3秒内初始化不了就放弃
       await _controller!.initialize().timeout(
         const Duration(seconds: 3),
         onTimeout: () {

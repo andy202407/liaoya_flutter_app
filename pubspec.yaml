@@ -1,4 +1,4 @@
-﻿name: liaoya_app
+name: liaoya_app
 description: "洽聊 - 安全高效的即时通讯App"
 publish_to: 'none'   
 version: 2.0.3+3   # 当前安卓版本    ios git push记得版本固定2.0.1
@@ -39,7 +39,6 @@ dependencies:
   # éŸ³é¢‘æ’­æ”¾
   audioplayers: ^6.0.0
   # è§†é¢‘æ’­æ”¾
-  video_player: ^2.8.6
   # URL å¯åŠ¨
   url_launcher: ^6.2.5
   # ä¿å­˜å›¾ç‰‡/è§†é¢‘åˆ°ç›¸å†Œ
@@ -64,6 +63,7 @@ dependencies:
   mobile_scanner: ^6.0.2
   # APK 安装（应用内更新）
   open_filex: ^4.5.0
+  video_player: ^2.10.1
 
 dev_dependencies:
   flutter_test:
