@@ -2677,7 +2677,7 @@ class _MessageBubble extends StatelessWidget {
   String _formatTime(String timeStr) {
     if (timeStr.isEmpty) return '';
     try {
-      final time = DateTime.parse(timeStr);
+      final time = TimeUtils.parseAsShanghai(timeStr);
       return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
     } catch (e) {
       return '';
