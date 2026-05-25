@@ -28,41 +28,48 @@ class TimeUtils {
     return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}T${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.millisecond.toString().padLeft(3, '0')}';
   }
 
-  /// 将后端返回的无时区标记时间字符串解析为上海时间
+  /// 将后端返回的时间字符串解析为上海时间
   ///
-  /// 后端返回的时间字符串格式如 "2024-01-02 08:00:00"，
-  /// 没有时区标记，应视为上海时间 (UTC+8)。
-  /// 返回的 DateTime 对象表示的绝对时间点与上海时间一致。
-  ///
-  /// [timeStr] 后端返回的时间字符串，支持格式:
-  ///   - "2024-01-02 08:00:00"
-  ///   - "2024-01-02T08:00:00"
-  ///   - "2024-01-02T08:00:00Z" (会忽略Z标记，视为上海时间)
+  /// 支持格式:
+  ///   - "2024-01-02 08:00:00" (无时区，视为上海时间)
+  ///   - "2024-01-02T08:00:00" (无时区，视为上海时间)
+  ///   - "2024-01-02T08:00:00Z" (UTC时间，转换为上海时间)
+  ///   - "2024-01-02T08:00:00+08:00" (带时区，转换为上海时间)
   static DateTime parseAsShanghai(String timeStr) {
-    // 移除可能的 Z 后缀，因为后端返回的时间实际是上海时间
     String cleaned = timeStr.trim();
-    if (cleaned.endsWith('Z') || cleaned.endsWith('z')) {
-      cleaned = cleaned.substring(0, cleaned.length - 1);
+    if (cleaned.isEmpty) return DateTime.utc(2000);
+
+    // 尝试用 DateTime.parse 解析（它能正确处理 Z 和 +08:00）
+    try {
+      final parsed = DateTime.parse(cleaned);
+      // DateTime.parse 会根据时区信息返回正确的绝对时间
+      // 如果有时区信息（Z 或 +xx:xx），parsed.isUtc 为 true
+      // 如果没有时区信息，parsed.isUtc 为 false（本地时间）
+
+      DateTime utcTime;
+      if (parsed.isUtc) {
+        // 带 Z 或带时区偏移的字符串，DateTime.parse 已正确转为 UTC
+        utcTime = parsed;
+      } else {
+        // 无时区标记，视为上海时间，减去8小时得到UTC
+        utcTime = parsed.subtract(shanghaiOffset);
+      }
+
+      // 转换为上海时间的显示值（UTC + 8小时）
+      final shanghai = utcTime.add(shanghaiOffset);
+      return DateTime.utc(
+        shanghai.year,
+        shanghai.month,
+        shanghai.day,
+        shanghai.hour,
+        shanghai.minute,
+        shanghai.second,
+        shanghai.millisecond,
+      );
+    } catch (e) {
+      // 解析失败，返回一个默认值
+      return DateTime.utc(2000);
     }
-
-    // 移除可能的时区偏移信息 (如 +08:00)
-    final tzPattern = RegExp(r'[+-]\d{2}:\d{2}$');
-    cleaned = cleaned.replaceAll(tzPattern, '');
-
-    // 解析为无时区的 DateTime（此时 DateTime 的值就是上海时间的时分秒）
-    final parsed = DateTime.parse(cleaned);
-
-    // 返回一个 UTC DateTime，其 UTC 值等于上海时间的显示值
-    // 这样在与 shanghaiNow() 比较时可以直接对比
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-    );
   }
 
   /// 统一时间格式化
