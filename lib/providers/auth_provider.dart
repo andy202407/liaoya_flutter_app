@@ -197,6 +197,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> register(String username, String password, String nickname, {
+    String? inviteCode,
     String? captchaTicket,
     String? captchaRandstr,
     String? simpleCaptchaId,
@@ -212,6 +213,7 @@ class AuthProvider extends ChangeNotifier {
         'password': password,
         'nickname': nickname,
       };
+      if (inviteCode != null && inviteCode.isNotEmpty) data['invite_code'] = inviteCode;
       if (captchaTicket != null) data['captcha_ticket'] = captchaTicket;
       if (captchaRandstr != null) data['captcha_randstr'] = captchaRandstr;
       if (simpleCaptchaId != null) data['simple_captcha_id'] = simpleCaptchaId;

@@ -19,6 +19,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _nicknameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _inviteCodeController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _agreed = false;
@@ -44,6 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _nicknameController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _inviteCodeController.dispose();
     super.dispose();
   }
 
@@ -155,6 +157,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _usernameController.text.trim(),
       _passwordController.text.trim(),
       _nicknameController.text.trim(),
+      inviteCode: _inviteCodeController.text.trim(),
     );
 
     if (success && mounted) {
@@ -236,6 +239,8 @@ class _RegisterPageState extends State<RegisterPage> {
                             _buildField(_passwordController, '密码', Icons.lock_outline, error: _passwordError, hint: '8位以上，含大小写或数字', obscure: _obscurePassword, toggleObscure: () => setState(() => _obscurePassword = !_obscurePassword)),
                             const SizedBox(height: 16),
                             _buildField(_confirmPasswordController, '确认密码', Icons.lock_outline, error: _confirmError, hint: '再次输入密码', obscure: _obscureConfirm, toggleObscure: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                            const SizedBox(height: 16),
+                            _buildField(_inviteCodeController, '邀请码', Icons.card_giftcard_outlined, hint: '请输入邀请码(选填)'),
                             const SizedBox(height: 20),
 
                             // 协议
