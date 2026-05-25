@@ -17,6 +17,7 @@ import '../../services/websocket_service.dart';
 import '../../services/notification_sound.dart';
 import '../../services/api/api_client.dart';
 import '../../config/api_config.dart';
+import '../../config/constants.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/in_app_notification.dart';
 import '../chat/conversation_list_page.dart';
@@ -230,7 +231,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (latestVersion.isEmpty || downloadUrl.isEmpty) return;
 
         final packageInfo = await PackageInfo.fromPlatform();
-        final currentVersion = packageInfo.version;
+        final currentVersion = isIOS ? AppConstants.iosLogicalVersion : packageInfo.version;
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           setState(() => _hasUpdate = true);

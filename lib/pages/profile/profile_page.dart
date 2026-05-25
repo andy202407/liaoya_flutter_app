@@ -15,6 +15,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/conversation_provider.dart';
 import '../../services/api/api_client.dart';
 import '../../config/api_config.dart';
+import '../../config/constants.dart';
 import '../../services/storage_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/theme_provider.dart';
@@ -52,7 +53,8 @@ class _ProfilePageState extends State<ProfilePage> {
             : (data['apk_url']?.toString() ?? '');
         if (latestVersion.isEmpty || downloadUrl.isEmpty) return;
         final packageInfo = await PackageInfo.fromPlatform();
-        if (_compareVersions(latestVersion, packageInfo.version) > 0) {
+        final currentVersion = isIOS ? AppConstants.iosLogicalVersion : packageInfo.version;
+        if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (mounted) setState(() => _hasUpdate = true);
         }
       }
@@ -408,7 +410,8 @@ class _ProfilePageState extends State<ProfilePage> {
     return FutureBuilder<PackageInfo>(
       future: PackageInfo.fromPlatform(),
       builder: (context, snapshot) {
-        final version = snapshot.data?.version ?? '...';
+        final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+        final version = isIOS ? AppConstants.iosLogicalVersion : (snapshot.data?.version ?? '...');
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           child: Row(
@@ -610,7 +613,7 @@ class _ProfilePageState extends State<ProfilePage> {
           return;
         }
         final packageInfo = await PackageInfo.fromPlatform();
-        final currentVersion = packageInfo.version;
+        final currentVersion = isIOS ? AppConstants.iosLogicalVersion : packageInfo.version;
         if (_compareVersions(latestVersion, currentVersion) > 0) {
           if (!mounted) return;
           showCupertinoDialog(
