@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../repositories/conversation_repository.dart';
 import '../services/api/api_client.dart';
 import '../services/websocket_service.dart';
+import '../utils/time_utils.dart';
 
 class ConversationProvider extends ChangeNotifier {
   final ConversationRepository _repo = ConversationRepository();
@@ -295,7 +296,7 @@ class ConversationProvider extends ChangeNotifier {
       _conversations[systemIndex] = {
         ..._conversations[systemIndex],
         'last_message': text,
-        'last_time': DateTime.now().toUtc().toIso8601String(),
+        'last_time': TimeUtils.nowIso8601(),
         'unread_count': ((_conversations[systemIndex]['unread_count'] as int?) ?? 0) + 1,
       };
     } else {
@@ -306,7 +307,7 @@ class ConversationProvider extends ChangeNotifier {
         'friend_id': 1,
         'friend': {'id': 1, 'nickname': '系统通知', 'username': '系统通知', 'avatar': ''},
         'last_message': text,
-        'last_time': DateTime.now().toUtc().toIso8601String(),
+        'last_time': TimeUtils.nowIso8601(),
         'unread_count': 1,
         'pinned': true,
       });

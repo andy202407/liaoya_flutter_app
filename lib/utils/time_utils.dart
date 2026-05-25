@@ -19,6 +19,15 @@ class TimeUtils {
     return DateTime.now().toUtc().add(shanghaiOffset);
   }
 
+  /// 获取当前上海时间的 ISO8601 字符串（不带时区后缀）
+  ///
+  /// 用于本地生成消息时间戳，确保与后端返回的格式一致。
+  /// 输出格式: "2026-05-25T16:01:00.000"
+  static String nowIso8601() {
+    final now = shanghaiNow();
+    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}T${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}.${now.millisecond.toString().padLeft(3, '0')}';
+  }
+
   /// 将后端返回的无时区标记时间字符串解析为上海时间
   ///
   /// 后端返回的时间字符串格式如 "2024-01-02 08:00:00"，

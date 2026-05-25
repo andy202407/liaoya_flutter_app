@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import '../utils/time_utils.dart';
 
 /// SQLite 本地数据库服务
 /// 负责消息和会话的本地缓存
@@ -145,7 +146,7 @@ class DatabaseService {
         'id': id,
         'data': jsonEncode(conv),
         'last_time': conv['last_time'] ?? '',
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
+        'updated_at': TimeUtils.nowIso8601(),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
     }
     await batch.commit(noResult: true);

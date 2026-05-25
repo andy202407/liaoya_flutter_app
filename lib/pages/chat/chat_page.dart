@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart' show getTemporaryDirectory;
 import '../../config/api_config.dart';
 import '../../services/api/api_client.dart';
+import '../../utils/time_utils.dart';
 import 'media_preview_page.dart';
 import 'group_info_page.dart';
 import '../../services/storage_service.dart';
@@ -377,7 +378,7 @@ class _ChatPageState extends State<ChatPage> {
         WebSocketService.instance.send({
           'type': 'clear_group_unread',
           'content': {'group_id': _groupId},
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
+          'timestamp': TimeUtils.nowIso8601(),
         });
         _dio.post('/groups/$_groupId/read').catchError((e) => null);
       }
@@ -389,7 +390,7 @@ class _ChatPageState extends State<ChatPage> {
           'type': 'message_read',
           'from': userId,
           'to': _friendId,
-          'timestamp': DateTime.now().toUtc().toIso8601String(),
+          'timestamp': TimeUtils.nowIso8601(),
         });
         // HTTP API 确保后端清除未读（防止 WebSocket 丢失）
         _dio.put('/messages/$_friendId/read').catchError((e) => null);
@@ -477,7 +478,7 @@ class _ChatPageState extends State<ChatPage> {
         'id': DateTime.now().millisecondsSinceEpoch,
         'content': text,
         'type': 'system',
-        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'created_at': TimeUtils.nowIso8601(),
       }));
     }
   }
@@ -883,7 +884,7 @@ class _ChatPageState extends State<ChatPage> {
           'content': text,
           'type': 'text',
           'quoted_message': quotedData,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': TimeUtils.nowIso8601(),
           'from_user': currentUser,
           'temp': true,
         }));
@@ -1039,7 +1040,7 @@ class _ChatPageState extends State<ChatPage> {
           'thumbnail': thumbnail,
           'image_width': imageWidth,
           'image_height': imageHeight,
-          'created_at': DateTime.now().toUtc().toIso8601String(),
+          'created_at': TimeUtils.nowIso8601(),
           'temp': true,
         }));
         _scrollToBottom();
