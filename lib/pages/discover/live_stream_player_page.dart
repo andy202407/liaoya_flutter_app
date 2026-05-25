@@ -165,14 +165,17 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     }
     _retryCount++;
     _retryTimer?.cancel();
-    final delay = Duration(milliseconds: 800 + (_retryCount * 500));
+    // 前两次快速静默重试（不闪烁loading），之后才显示连接中
+    final delay = Duration(milliseconds: _retryCount <= 2 ? 500 : 800 + (_retryCount * 500));
     _retryTimer = Timer(delay, () {
       if (mounted && _status == 1) {
         debugPrint('[LiveStream] retry #$_retryCount');
-        setState(() {
-          _isVideoLoading = true;
-          _videoError = false;
-        });
+        if (_retryCount > 2) {
+          setState(() {
+            _isVideoLoading = true;
+            _videoError = false;
+          });
+        }
         _initVideo();
       }
     });
