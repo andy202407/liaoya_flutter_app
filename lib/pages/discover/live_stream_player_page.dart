@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:video_player/video_player.dart';
@@ -42,10 +43,14 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     WebSocketService.instance.on('live_chat', _onChatMessage);
     WebSocketService.instance.on('live_chat_delete', _onChatDelete);
     WebSocketService.instance.on('live_chat_error', _onChatError);
+    // 监听直播状态更新（比分、状态切换）
+    WebSocketService.instance.on('live_stream_update', _onStreamUpdate);
   }
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
+    _videoController?.removeListener(_onVideoError);
     _videoController?.dispose();
     _chatController.dispose();
     _chatScrollController.dispose();
@@ -54,6 +59,7 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     WebSocketService.instance.off('live_chat', _onChatMessage);
     WebSocketService.instance.off('live_chat_delete', _onChatDelete);
     WebSocketService.instance.off('live_chat_error', _onChatError);
+    WebSocketService.instance.off('live_stream_update', _onStreamUpdate);
     super.dispose();
   }
 
@@ -61,13 +67,45 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     try {
       final res = await ApiClient.instance.dio.get('/user/live-streams/$_streamId');
       if (res.data['success'] == true && res.data['data'] != null) {
+        final oldPlaybackUrl = _streamDetail?['playback_url'] ?? widget.stream['playback_url'];
+        final oldStatus = _status;
+        final isFirstLoad = _streamDetail == null;
         setState(() => _streamDetail = res.data['data']);
-        _initVideo();
+        final newPlaybackUrl = _streamDetail?['playback_url'] as String?;
+
+        // 播放链接变了（重置密钥后），销毁旧播放器重新初始化
+        if (!isFirstLoad && newPlaybackUrl != null && newPlaybackUrl.isNotEmpty && newPlaybackUrl != oldPlaybackUrl && _videoController != null) {
+          _videoController?.dispose();
+          _videoController = null;
+          setState(() {
+            _isVideoLoading = true;
+            _videoError = false;
+          });
+          _initVideo();
+          return;
+        }
+
+        // 首次加载或状态变为直播中，初始化播放
+        if (_videoController == null && newPlaybackUrl != null && newPlaybackUrl.isNotEmpty) {
+          setState(() {
+            _isVideoLoading = true;
+            _videoError = false;
+          });
+          _initVideo();
+        }
+        // 状态变为非直播中，停止播放
+        if (_status != 1 && oldStatus == 1 && _videoController != null) {
+          _videoController?.pause();
+        }
       }
     } catch (e) {
       debugPrint('[LiveStream] detail error: $e');
     }
   }
+
+  int _retryCount = 0;
+  static const int _maxRetries = 5;
+  Timer? _retryTimer;
 
   void _initVideo() {
     final playbackUrl = _streamDetail?['playback_url'] as String?;
@@ -79,17 +117,67 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
       return;
     }
 
-    final fullUrl = playbackUrl.startsWith('http') ? playbackUrl : '${ApiConfig.baseUrl}$playbackUrl';
-    _videoController = VideoPlayerController.networkUrl(Uri.parse(fullUrl))
+    // 加时间戳绕过缓存
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    String fullUrl = playbackUrl.startsWith('http') ? playbackUrl : '${ApiConfig.baseUrl}$playbackUrl';
+    fullUrl = fullUrl.contains('?') ? '$fullUrl&_t=$timestamp' : '$fullUrl?_t=$timestamp';
+
+    _videoController?.removeListener(_onVideoError);
+    _videoController?.dispose();
+    _videoController = VideoPlayerController.networkUrl(
+      Uri.parse(fullUrl),
+      httpHeaders: const {'Connection': 'keep-alive'},
+    )
       ..initialize().then((_) {
-        setState(() => _isVideoLoading = false);
-        _videoController!.play();
+        if (mounted) {
+          _retryCount = 0;
+          setState(() {
+            _isVideoLoading = false;
+            _videoError = false;
+          });
+          _videoController!.play();
+          _videoController!.addListener(_onVideoError);
+        }
       }).catchError((e) {
+        debugPrint('[LiveStream] video init error: $e');
+        if (mounted) {
+          _scheduleRetry();
+        }
+      });
+  }
+
+  void _onVideoError() {
+    if (_videoController == null) return;
+    if (_videoController!.value.hasError) {
+      debugPrint('[LiveStream] playback error, retrying...');
+      _scheduleRetry();
+    }
+  }
+
+  void _scheduleRetry() {
+    if (_retryCount >= _maxRetries) {
+      if (mounted) {
         setState(() {
           _isVideoLoading = false;
           _videoError = true;
         });
-      });
+      }
+      return;
+    }
+    _retryCount++;
+    _retryTimer?.cancel();
+    // 快速重试：1s, 1.5s, 2s, 2.5s, 3s
+    final delay = Duration(milliseconds: 800 + (_retryCount * 500));
+    _retryTimer = Timer(delay, () {
+      if (mounted && _status == 1) {
+        debugPrint('[LiveStream] retry #$_retryCount');
+        setState(() {
+          _isVideoLoading = true;
+          _videoError = false;
+        });
+        _initVideo();
+      }
+    });
   }
 
   Future<void> _loadChatMessages() async {
@@ -110,14 +198,14 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
   void _joinChatRoom() {
     WebSocketService.instance.send({
       'type': 'live_chat_join',
-      'content': {'stream_id': '$_streamId'},
+      'content': '$_streamId',
     });
   }
 
   void _leaveChatRoom() {
     WebSocketService.instance.send({
       'type': 'live_chat_leave',
-      'content': {'stream_id': '$_streamId'},
+      'content': '$_streamId',
     });
   }
 
@@ -146,6 +234,24 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     setState(() => _isMuted = true);
   }
 
+  void _onStreamUpdate(Map<String, dynamic> msg) {
+    // 收到直播更新通知，重新加载详情（比分、状态等）
+    final content = msg['content'];
+    Map<String, dynamic>? data;
+    if (content is String) {
+      try { data = Map<String, dynamic>.from(const JsonDecoder().convert(content)); } catch (_) {}
+    } else if (content is Map) {
+      data = Map<String, dynamic>.from(content);
+    }
+    final streamId = data?['stream_id'];
+    if (streamId != null && streamId.toString() == '$_streamId') {
+      _loadStreamDetail();
+    } else {
+      // 广播更新，也刷新
+      _loadStreamDetail();
+    }
+  }
+
   void _sendChat() {
     final text = _chatController.text.trim();
     if (text.isEmpty || _isMuted || _status != 1) return;
@@ -155,6 +261,14 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
       'content': {'stream_id': '$_streamId', 'content': text},
     });
     _chatController.clear();
+  }
+
+  void _sendEmoji(String emoji) {
+    if (_isMuted || _status != 1) return;
+    WebSocketService.instance.send({
+      'type': 'live_chat',
+      'content': {'stream_id': '$_streamId', 'content': emoji},
+    });
   }
 
   void _scrollToBottom() {
@@ -172,50 +286,31 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final homeTeam = widget.stream['home_team'] ?? '主队';
-    final awayTeam = widget.stream['away_team'] ?? '客队';
+    final title = (_streamDetail?['title'] as String?)?.isNotEmpty == true
+        ? _streamDetail!['title']
+        : (widget.stream['title'] as String?)?.isNotEmpty == true
+            ? widget.stream['title']
+            : (_streamDetail?['league'] ?? widget.stream['league'] ?? '直播');
+    final homeTeam = _streamDetail?['home_team'] ?? widget.stream['home_team'] ?? '主队';
+    final awayTeam = _streamDetail?['away_team'] ?? widget.stream['away_team'] ?? '客队';
     final homeScore = _streamDetail?['home_score'] ?? widget.stream['home_score'];
     final awayScore = _streamDetail?['away_score'] ?? widget.stream['away_score'];
-    final league = widget.stream['league'] ?? '';
-    final viewCount = _streamDetail?['view_count'] ?? widget.stream['view_count'] ?? 0;
+    final homeLogo = (_streamDetail?['home_logo'] ?? widget.stream['home_logo']) as String?;
+    final awayLogo = (_streamDetail?['away_logo'] ?? widget.stream['away_logo']) as String?;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : Colors.black,
+      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Row(
-          children: [
-            if (_status == 1)
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.only(right: 8),
-                decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
-              ),
-            Expanded(
-              child: Text(
-                league.isNotEmpty ? '$league · $homeTeam vs $awayTeam' : '$homeTeam vs $awayTeam',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+        foregroundColor: isDark ? Colors.white : AppColors.lightText,
+        elevation: 0,
+        title: Text(
+          title,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? Colors.white : AppColors.lightText),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        actions: [
-          if (viewCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Row(
-                children: [
-                  const Icon(CupertinoIcons.eye, size: 14, color: Colors.white60),
-                  const SizedBox(width: 4),
-                  Text('$viewCount', style: const TextStyle(fontSize: 12, color: Colors.white60)),
-                ],
-              ),
-            ),
-        ],
+        actions: const [],
       ),
       body: Column(
         children: [
@@ -227,8 +322,8 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
               child: _buildVideoPlayer(),
             ),
           ),
-          // 比分条
-          _buildScoreBar(homeTeam, awayTeam, homeScore, awayScore, isDark),
+          // 对战信息条
+          _buildMatchBar(homeTeam, awayTeam, homeScore, awayScore, homeLogo, awayLogo, isDark),
           // 聊天区域
           Expanded(child: _buildChatSection(isDark)),
         ],
@@ -238,20 +333,46 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
 
   Widget _buildVideoPlayer() {
     if (_isVideoLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
-    }
-    if (_videoError || _videoController == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(CupertinoIcons.tv, size: 40, color: Colors.white30),
-            const SizedBox(height: 8),
-            Text(
-              _status == 0 ? '直播尚未开始' : '暂无播放源',
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-            ),
+            const CircularProgressIndicator(color: Colors.white),
+            if (_retryCount > 0) ...[
+              const SizedBox(height: 8),
+              Text('连接中... ($_retryCount)', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            ],
           ],
+        ),
+      );
+    }
+    if (_videoError || _videoController == null) {
+      return GestureDetector(
+        onTap: () {
+          // 手动重试
+          _retryCount = 0;
+          setState(() {
+            _isVideoLoading = true;
+            _videoError = false;
+          });
+          _initVideo();
+        },
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _status == 0 ? CupertinoIcons.clock : (_status == 2 ? CupertinoIcons.flag : CupertinoIcons.refresh),
+                size: 36,
+                color: Colors.white38,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _status == 0 ? '⏳ 比赛尚未开始' : (_status == 2 ? '🏁 比赛已结束' : '点击重试播放'),
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -259,7 +380,6 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
       alignment: Alignment.center,
       children: [
         VideoPlayer(_videoController!),
-        // 播放/暂停按钮
         GestureDetector(
           onTap: () {
             setState(() {
@@ -274,27 +394,61 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
     );
   }
 
-  Widget _buildScoreBar(String home, String away, dynamic homeScore, dynamic awayScore, bool isDark) {
+  Widget _buildMatchBar(String home, String away, dynamic homeScore, dynamic awayScore, String? homeLogo, String? awayLogo, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      color: isDark ? AppColors.darkCard : Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        border: Border(bottom: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider, width: 0.5)),
+      ),
       child: Row(
         children: [
+          // 主队
           Expanded(
-            child: Text(home, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), textAlign: TextAlign.center),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Text(home, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                if (homeLogo != null && homeLogo.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: Image.network(homeLogo, width: 20, height: 20, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                  ),
+                ],
+              ],
+            ),
           ),
+          // 比分
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkBg : AppColors.lightBg,
-              borderRadius: BorderRadius.circular(8),
+              color: isDark ? AppColors.darkBg : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: homeScore != null && awayScore != null
-                ? Text('$homeScore - $awayScore', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _status == 1 ? AppColors.error : (isDark ? AppColors.darkText : AppColors.lightText)))
-                : Text('VS', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.systemGray)),
+                ? Text('$homeScore - $awayScore', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _status == 1 ? AppColors.error : (isDark ? AppColors.darkText : AppColors.lightText)))
+                : Text('VS', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.systemGray)),
           ),
+          // 客队
           Expanded(
-            child: Text(away, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), textAlign: TextAlign.center),
+            child: Row(
+              children: [
+                if (awayLogo != null && awayLogo.isNotEmpty) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: Image.network(awayLogo, width: 20, height: 20, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(away, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.darkText : AppColors.lightText), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -347,45 +501,69 @@ class _LiveStreamPlayerPageState extends State<LiveStreamPlayerPage> {
               textAlign: TextAlign.center,
             ),
           ),
-        // 输入框
+        // 快捷表情 + 输入框
         if (!_isMuted && _status == 1)
           Container(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).padding.bottom + 8),
+            padding: EdgeInsets.fromLTRB(12, 6, 12, MediaQuery.of(context).padding.bottom + 6),
             decoration: BoxDecoration(
               color: isDark ? AppColors.darkCard : Colors.white,
               border: Border(top: BorderSide(color: isDark ? AppColors.darkDivider : AppColors.lightDivider, width: 0.5)),
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _chatController,
-                    decoration: InputDecoration(
-                      hintText: '说点什么...',
-                      hintStyle: TextStyle(color: AppColors.systemGray, fontSize: 14),
-                      filled: true,
-                      fillColor: isDark ? AppColors.darkInputBg : AppColors.lightInputBg,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                    maxLength: 200,
-                    maxLines: 1,
-                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-                    onSubmitted: (_) => _sendChat(),
+                // 快捷表情栏
+                SizedBox(
+                  height: 32,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: ['⚽', '🔥', '👏', '😍', '🎉', '💪', '😂', '❤️', '👍', '😱', '🏆', '🙏'].map((emoji) {
+                      return GestureDetector(
+                        onTap: () => _sendEmoji(emoji),
+                        child: Container(
+                          width: 32,
+                          alignment: Alignment.center,
+                          child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _sendChat,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
+                const SizedBox(height: 6),
+                // 输入框
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _chatController,
+                        decoration: InputDecoration(
+                          hintText: '说点什么...',
+                          hintStyle: TextStyle(color: AppColors.systemGray, fontSize: 14),
+                          filled: true,
+                          fillColor: isDark ? AppColors.darkInputBg : AppColors.lightInputBg,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        ),
+                        maxLength: 200,
+                        maxLines: 1,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        onSubmitted: (_) => _sendChat(),
+                      ),
                     ),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
-                  ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _sendChat,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

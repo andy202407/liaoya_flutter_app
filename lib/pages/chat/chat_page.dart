@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
@@ -26,6 +27,7 @@ import '../../utils/mention_rich_text.dart';
 import '../../widgets/member_picker_sheet.dart';
 import '../../providers/mention_provider.dart';
 import '../../widgets/mention_nav_widget.dart';
+import '../discover/live_stream_player_page.dart';
 import 'package:provider/provider.dart';
 
 class ChatPage extends StatefulWidget {
@@ -1204,7 +1206,7 @@ class _ChatPageState extends State<ChatPage> {
                 }
               },
             ),
-          if (!_isGroup && !_isSystemNotification)
+          if (!_isGroup)
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, color: isDark ? Colors.white70 : Colors.black54),
               onSelected: (value) {
@@ -1830,11 +1832,11 @@ class _MessageBubble extends StatelessWidget {
                       Flexible(
                         child: Container(
                           constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
-                          padding: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab')
+                          padding: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab' || effectiveType == 'live_card')
                               ? const EdgeInsets.all(3)
                               : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab')
+                            color: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab' || effectiveType == 'live_card')
                                 ? Colors.transparent
                                 : (isMe ? AppColors.bubbleSent : (isDark ? AppColors.bubbleReceivedDark : AppColors.bubbleReceived)),
                             borderRadius: BorderRadius.only(
@@ -1843,7 +1845,7 @@ class _MessageBubble extends StatelessWidget {
                               bottomLeft: Radius.circular(isMe ? 18 : 4),
                               bottomRight: Radius.circular(isMe ? 4 : 18),
                             ),
-                            boxShadow: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab') ? null : [
+                            boxShadow: (effectiveType == 'image' || effectiveType == 'video' || effectiveType == 'images' || effectiveType == 'videos' || effectiveType == 'red_packet' || effectiveType == 'red_packet_grab' || effectiveType == 'live_card') ? null : [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                                 blurRadius: 4,
@@ -2096,6 +2098,9 @@ class _MessageBubble extends StatelessWidget {
     }
     if (type == 'red_packet_grab') {
       return _buildRedPacketGrabNotice(content);
+    }
+    if (type == 'live_card') {
+      return _buildLiveCardMessage(message, isDark);
     }
     if (type == 'audio') {
       return Row(
@@ -2408,6 +2413,107 @@ class _MessageBubble extends StatelessWidget {
         child: Text(text, style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45)),
       ),
     );
+  }
+
+  Widget _buildLiveCardMessage(Map<String, dynamic> message, bool isDark) {
+    Map<String, dynamic> card = {};
+    try {
+      final c = message['content'];
+      if (c is String) {
+        card = Map<String, dynamic>.from(jsonDecode(c));
+      } else if (c is Map) {
+        card = Map<String, dynamic>.from(c);
+      }
+    } catch (_) {}
+
+    final homeTeam = card['home_team'] ?? '主队';
+    final awayTeam = card['away_team'] ?? '客队';
+    final league = card['league'] ?? '';
+    final homeLogo = card['home_logo'] as String?;
+    final awayLogo = card['away_logo'] as String?;
+    final status = card['status'] as int? ?? 1;
+
+    // 根据状态决定颜色和标签
+    final List<Color> gradientColors;
+    final String statusText;
+    final Color statusBgColor;
+    switch (status) {
+      case 1:
+        gradientColors = [const Color(0xFFEF4444), const Color(0xFFF97316)];
+        statusText = 'LIVE';
+        statusBgColor = Colors.red;
+        break;
+      case 0:
+        gradientColors = [const Color(0xFF6366F1), const Color(0xFF8B5CF6)];
+        statusText = '即将开始';
+        statusBgColor = const Color(0xFF6366F1);
+        break;
+      default:
+        gradientColors = [const Color(0xFF64748B), const Color(0xFF475569)];
+        statusText = '已结束';
+        statusBgColor = const Color(0xFF64748B);
+    }
+
+    return Builder(builder: (ctx) => GestureDetector(
+      onTap: () {
+        Navigator.push(ctx, CupertinoPageRoute(
+          builder: (_) => LiveStreamPlayerPage(stream: card),
+        ));
+      },
+      child: Container(
+        width: 240,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: gradientColors),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.live_tv_rounded, size: 14, color: Colors.white70),
+                const SizedBox(width: 4),
+                Text(league.isNotEmpty ? league : '直播', style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: statusBgColor.withAlpha(180), borderRadius: BorderRadius.circular(4)),
+                  child: Text(statusText, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (homeLogo != null && homeLogo.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Image.network(
+                      homeLogo.startsWith('http') ? homeLogo : '${ApiConfig.baseUrl}$homeLogo',
+                      width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                  ),
+                Expanded(child: Text(homeTeam, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                const Text(' vs ', style: TextStyle(fontSize: 11, color: Colors.white60)),
+                Expanded(child: Text(awayTeam, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right)),
+                if (awayLogo != null && awayLogo.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Image.network(
+                      awayLogo.startsWith('http') ? awayLogo : '${ApiConfig.baseUrl}$awayLogo',
+                      width: 16, height: 16, errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Center(child: Text(
+              status == 1 ? '点击观看直播 →' : (status == 0 ? '点击查看详情 →' : '比赛已结束'),
+              style: const TextStyle(fontSize: 11, color: Colors.white54),
+            )),
+          ],
+        ),
+      ),
+    ));
   }
 
   void _openRedPacket(BuildContext context, dynamic rpId) async {

@@ -23,6 +23,7 @@ import '../chat/conversation_list_page.dart';
 import '../contacts/contacts_page.dart';
 import '../discover/discover_page.dart';
 import '../profile/profile_page.dart';
+import '../../widgets/live_stream_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -193,6 +194,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       case 'videos': return '[视频]';
       case 'audio': return '[语音]';
       case 'file': return '[文件]';
+      case 'live_card': return '🔴 直播已开始，点击观看';
+      case 'red_packet': return '[红包]';
       case 'message':
       case 'text':
         if (content is String && content.isNotEmpty) {
@@ -347,9 +350,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _pages,
+          ),
+          if (_currentIndex == 0) const LiveStreamWidget(),
+        ],
       ),
       bottomNavigationBar: Padding(
         padding: EdgeInsets.only(

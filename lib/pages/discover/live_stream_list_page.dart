@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../../services/api/api_client.dart';
+import '../../services/websocket_service.dart';
 import '../../config/api_config.dart';
 import '../../theme/app_colors.dart';
 import 'live_stream_player_page.dart';
@@ -29,12 +30,19 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
       }
     });
     _loadStreams();
+    // 监听 WebSocket 直播更新事件
+    WebSocketService.instance.on('live_stream_update', _onLiveStreamUpdate);
   }
 
   @override
   void dispose() {
+    WebSocketService.instance.off('live_stream_update', _onLiveStreamUpdate);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onLiveStreamUpdate(Map<String, dynamic> message) {
+    _loadStreams();
   }
 
   Future<void> _loadStreams() async {
@@ -46,16 +54,13 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
         setState(() {
           _streams = data.map((e) => e as Map<String, dynamic>).toList();
         });
-        // 自动选择默认 tab：有直播中选直播中，否则选即将开始，都没有就留在直播中
+        // 自动选择默认 tab：有直播中选直播中，否则默认即将开始
         if (_liveCount > 0) {
           _tabController.index = 0;
           _currentTab = 1;
-        } else if (_upcomingCount > 0) {
+        } else {
           _tabController.index = 1;
           _currentTab = 0;
-        } else {
-          _tabController.index = 0;
-          _currentTab = 1;
         }
       }
     } catch (e) {
@@ -77,7 +82,14 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('体育直播'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/images/logo.png', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text('体育直播'),
+          ],
+        ),
         centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
@@ -201,45 +213,47 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
         ),
         child: Row(
           children: [
-            // 左：主播头像
-            Column(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: isLive
-                        ? const LinearGradient(colors: [Color(0xFFAA5CFC), Color(0xFF7C5CFC)])
-                        : null,
-                    border: !isLive ? Border.all(color: AppColors.systemGray3, width: 1.5) : null,
-                  ),
-                  child: Container(
+            // 左：主播头像（仅在有主播时显示）
+            if (broadcaster != null) ...[
+              Column(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isDark ? AppColors.darkCard : Colors.white,
+                      gradient: isLive
+                          ? const LinearGradient(colors: [Color(0xFFAA5CFC), Color(0xFF7C5CFC)])
+                          : null,
+                      border: !isLive ? Border.all(color: AppColors.systemGray3, width: 1.5) : null,
                     ),
-                    padding: const EdgeInsets.all(1.5),
-                    child: ClipOval(
-                      child: broadcasterAvatar != null && broadcasterAvatar.isNotEmpty
-                          ? Image.network(
-                              broadcasterAvatar.startsWith('http') ? broadcasterAvatar : '${ApiConfig.baseUrl}$broadcasterAvatar',
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
-                            )
-                          : _buildAvatarPlaceholder(isDark),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDark ? AppColors.darkCard : Colors.white,
+                      ),
+                      padding: const EdgeInsets.all(1.5),
+                      child: ClipOval(
+                        child: broadcasterAvatar != null && broadcasterAvatar.isNotEmpty
+                            ? Image.network(
+                                broadcasterAvatar.startsWith('http') ? broadcasterAvatar : '${ApiConfig.baseUrl}$broadcasterAvatar',
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(isDark),
+                              )
+                            : _buildAvatarPlaceholder(isDark),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  broadcasterName.length > 4 ? broadcasterName.substring(0, 4) : broadcasterName,
-                  style: TextStyle(fontSize: 10, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray),
-                ),
-              ],
-            ),
-            const SizedBox(width: 14),
+                  const SizedBox(height: 4),
+                  Text(
+                    broadcasterName.length > 4 ? broadcasterName.substring(0, 4) : broadcasterName,
+                    style: TextStyle(fontSize: 10, color: isDark ? AppColors.darkTextTertiary : AppColors.systemGray),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+            ],
             // 中：赛事信息（联赛 + 两队比分）
             Expanded(
               child: Column(
@@ -251,7 +265,9 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
                       if (stream['league_logo'] != null && (stream['league_logo'] as String).isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(right: 4),
-                          child: Image.network(stream['league_logo'], width: 14, height: 14, fit: BoxFit.contain,
+                          child: Image.network(
+                            (stream['league_logo'] as String).startsWith('http') ? stream['league_logo'] : '${ApiConfig.baseUrl}${stream['league_logo']}',
+                            width: 14, height: 14, fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => const SizedBox.shrink()),
                         ),
                       Text(league, style: TextStyle(fontSize: 12, color: isDark ? AppColors.darkTextSecondary : AppColors.systemGray)),
@@ -328,9 +344,10 @@ class _LiveStreamListPageState extends State<LiveStreamListPage> with SingleTick
 
   Widget _buildSmallTeamLogo(String? logoUrl, String teamName, bool isDark) {
     if (logoUrl != null && logoUrl.isNotEmpty) {
+      final url = logoUrl.startsWith('http') ? logoUrl : '${ApiConfig.baseUrl}$logoUrl';
       return ClipRRect(
         borderRadius: BorderRadius.circular(3),
-        child: Image.network(logoUrl, width: 18, height: 18, fit: BoxFit.contain,
+        child: Image.network(url, width: 18, height: 18, fit: BoxFit.contain,
           errorBuilder: (_, __, ___) => _buildSmallTeamPlaceholder(teamName, isDark)),
       );
     }
