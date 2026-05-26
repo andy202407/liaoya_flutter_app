@@ -29,6 +29,7 @@ import '../../widgets/member_picker_sheet.dart';
 import '../../providers/mention_provider.dart';
 import '../../widgets/mention_nav_widget.dart';
 import '../discover/live_stream_player_page.dart';
+import '../../widgets/chat_history_gallery.dart';
 import 'package:provider/provider.dart';
 
 class ChatPage extends StatefulWidget {
@@ -1102,6 +1103,47 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  /// 打开聊天记录
+  void _openChatHistory() {
+    // 用独立的 navigatorKey，避免 pop 互相干扰
+    final galleryNavigatorKey = GlobalKey<NavigatorState>();
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Navigator(
+          key: galleryNavigatorKey,
+          onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (_) => ChatHistoryGallery(
+              friendId: _isGroup ? null : _friendId,
+              groupId: _isGroup ? _groupId : null,
+              friendName: _chatName,
+              isMobile: MediaQuery.of(dialogContext).size.width < 600,
+              onClose: () => Navigator.of(dialogContext).pop(),
+              onFilePreview: (fileType, url, fileName, fileSize) {
+                // 直接在 gallery 内部的 Navigator 里 push 预览页
+                // 不关闭弹窗，预览关闭后自然回到聊天记录
+                if (fileType == 'image') {
+                  galleryNavigatorKey.currentState?.push(MaterialPageRoute(
+                    builder: (_) => ImagePreviewPage(url: url),
+                  ));
+                } else if (fileType == 'video') {
+                  galleryNavigatorKey.currentState?.push(MaterialPageRoute(
+                    builder: (_) => VideoPreviewPage(url: url),
+                  ));
+                }
+                // 文件类型不做导航，由 gallery 内部的下载对话框处理
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 引用消息点击跳转处理
   /// Requirements: 7.1, 7.2, 7.3, 7.4, 9.4
   void _onQuotedMessageTap(int quotedMessageId) async {
@@ -1192,6 +1234,12 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ),
         actions: [
+          // 聊天记录按钮
+          IconButton(
+            icon: Icon(CupertinoIcons.photo_on_rectangle, color: isDark ? Colors.white70 : Colors.black54),
+            onPressed: _openChatHistory,
+            tooltip: '聊天记录',
+          ),
           if (_isGroup)
             IconButton(
               icon: Icon(Icons.more_horiz, color: isDark ? Colors.white70 : Colors.black54),
