@@ -699,40 +699,42 @@ class _ChatHistoryGalleryState extends State<ChatHistoryGallery>
     }
     final dateKeys = groups.keys.toList();
 
-    // 构建 sliver 列表：日期 header 置顶 + 消息行
-    final slivers = <Widget>[];
+    // 构建扁平列表：日期 header + 消息行交替排列
+    final flatItems = <_FlatListItem>[];
     for (final date in dateKeys) {
-      final dayItems = groups[date]!;
-      // 日期 header — SliverPersistentHeader 实现置顶
-      slivers.add(SliverPersistentHeader(
-        pinned: true,
-        delegate: _DateHeaderDelegate(
-          date: date,
-          isDark: isDark,
-        ),
-      ));
-      // 当日消息
-      slivers.add(SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (_, i) => _buildTextRow(dayItems[i], isDark),
-            childCount: dayItems.length,
-          ),
-        ),
-      ));
-    }
-    // 加载更多指示
-    if (_isLoadingMore) {
-      slivers.add(const SliverToBoxAdapter(
-        child: Padding(padding: EdgeInsets.all(16), child: Center(child: CupertinoActivityIndicator())),
-      ));
+      flatItems.add(_FlatListItem(isHeader: true, date: date));
+      for (final item in groups[date]!) {
+        flatItems.add(_FlatListItem(isHeader: false, textItem: item));
+      }
     }
 
     return NotificationListener<ScrollNotification>(
       onNotification: (n) { if (n is ScrollEndNotification && n.metrics.extentAfter < 100) _loadMore(); return false; },
-      child: CustomScrollView(
-        slivers: slivers,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: flatItems.length + (_isLoadingMore ? 1 : 0),
+        itemBuilder: (context, i) {
+          if (i >= flatItems.length) {
+            return const Padding(padding: EdgeInsets.all(16), child: Center(child: CupertinoActivityIndicator()));
+          }
+          final item = flatItems[i];
+          if (item.isHeader) {
+            return Center(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkInputBg : AppColors.lightInputBg,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(item.date!,
+                  style: TextStyle(fontSize: 11,
+                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
+              ),
+            );
+          }
+          return _buildTextRow(item.textItem!, isDark);
+        },
       ),
     );
   }
@@ -961,39 +963,13 @@ class _TextItem {
     required this.senderAvatar, required this.createdAt});
 }
 
-// ─── 日期置顶 Header ──────────────────────────────────────────
+// ─── 消息列表扁平化辅助 ──────────────────────────────────────
 
-class _DateHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final String date;
-  final bool isDark;
-
-  _DateHeaderDelegate({required this.date, required this.isDark});
-
-  @override
-  double get minExtent => 32;
-  @override
-  double get maxExtent => 32;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: isDark ? const Color(0xFF1A1A24) : Colors.white,
-      alignment: Alignment.center,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkInputBg : AppColors.lightInputBg,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(date,
-          style: TextStyle(fontSize: 11,
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary)),
-      ),
-    );
-  }
-
-  @override
-  bool shouldRebuild(_DateHeaderDelegate old) => old.date != date || old.isDark != isDark;
+class _FlatListItem {
+  final bool isHeader;
+  final String? date;
+  final _TextItem? textItem;
+  _FlatListItem({required this.isHeader, this.date, this.textItem});
 }
 
 // ─── 下载对话框 ───────────────────────────────────────────────
