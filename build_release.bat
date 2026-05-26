@@ -8,7 +8,7 @@ echo ========================================
 echo.
 
 :: Version config
-set VERSION_NAME=2.0.5
+set VERSION_NAME=2.0.6
 set VERSION_CODE=3
 
 :: Update version in pubspec.yaml
