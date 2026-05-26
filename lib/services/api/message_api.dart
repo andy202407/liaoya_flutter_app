@@ -20,4 +20,23 @@ class MessageApi {
 
   Future<Response> recallMessage(int messageId) =>
       _dio.post('/messages/$messageId/recall');
+
+  /// 按分类获取私聊消息
+  /// GET /messages/category?friend_id=&category=&limit=&before_id=
+  Future<Response> getMessagesByCategory(
+    int friendId, 
+    String category, {
+    int limit = 20,
+    int? beforeId,
+    Map<String, dynamic>? extraParams,
+  }) {
+    final params = <String, dynamic>{
+      'friend_id': friendId,
+      'limit': limit,
+      'category': category,
+    };
+    if (beforeId != null) params['before_id'] = beforeId;
+    if (extraParams != null) params.addAll(extraParams);
+    return _dio.get('/messages/category', queryParameters: params);
+  }
 }

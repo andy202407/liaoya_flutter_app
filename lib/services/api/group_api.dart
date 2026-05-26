@@ -37,4 +37,21 @@ class GroupApi {
     if (code != null && code.isNotEmpty) data['code'] = code;
     return _dio.post('/groups/join-by-link', data: data);
   }
+
+  /// 按分类获取群聊消息
+  Future<Response> getGroupMessagesByCategory(
+    int groupId, 
+    String category, {
+    int limit = 20,
+    int? beforeId,
+    Map<String, dynamic>? extraParams,
+  }) {
+    final params = <String, dynamic>{
+      'limit': limit,
+      'category': category,
+    };
+    if (beforeId != null) params['before_id'] = beforeId;
+    if (extraParams != null) params.addAll(extraParams);
+    return _dio.get('/groups/$groupId/messages/category', queryParameters: params);
+  }
 }
