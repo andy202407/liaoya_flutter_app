@@ -219,11 +219,11 @@ class ConversationProvider extends ChangeNotifier {
     });
   }
 
-  /// 消息撤回：只更新会话预览，不全量刷新（避免会话消失）
+  /// 消息撤回：延迟刷新会话列表以更新预览文字
   void _onMessageRecalledConv(Map<String, dynamic> msg) {
-    // 不做全量刷新，会话列表保持不变
-    // 预览文字会在下次正常刷新时更新
-    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      loadConversations();
+    });
   }
 
   /// 处理好友在线状态变化事件
